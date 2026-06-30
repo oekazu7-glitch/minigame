@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#10172a" />
+    <meta
+      name="description"
+      content="Phaser.jsで作った、全10ステージのボンバーマン風アクションゲーム"
+    />
+    <title>Super Komatsu Man</title>
+    <link rel="stylesheet" href="./style.css?v=30" />
+    <script src="./vendor/phaser.min.js"></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="game-header">
+        <div>
+          <p class="eyebrow">PHASER ARCADE</p>
+          <h1>SUPER KOMATSU MAN</h1>
+        </div>
+        <div class="header-help">
+          <span>MOVE <kbd>WASD</kbd> / <kbd>ARROWS</kbd></span>
+          <span>BOMB <kbd>SPACE</kbd></span>
+        </div>
+      </header>
+
+      <section class="game-frame" aria-label="Super Komatsu Man ゲーム">
+        <div id="game-container"></div>
+        <div id="loading-message">LOADING...</div>
+      </section>
+
+      <section class="touch-controls" aria-label="タッチ操作">
+        <div class="d-pad">
+          <button class="touch-button up" data-control="up" aria-label="上へ移動">▲</button>
+          <button class="touch-button left" data-control="left" aria-label="左へ移動">◀</button>
+          <button class="touch-button down" data-control="down" aria-label="下へ移動">▼</button>
+          <button class="touch-button right" data-control="right" aria-label="右へ移動">▶</button>
+        </div>
+        <button class="bomb-button" data-control="bomb" aria-label="爆弾を設置">
+          <span class="bomb-icon"></span>
+          BOMB
+        </button>
+      </section>
+
+      <footer>
+        敵をすべて倒して、壁に隠された出口を探せ。全10ステージ。
+      </footer>
+    </main>
+
+    <script>
+      window.addEventListener("error", (event) => {
+        const loading = document.querySelector("#loading-message");
+        if (!loading) return;
+        loading.textContent = "起動に失敗しました。ページを再読み込みしてください。";
+        loading.classList.add("loading-error");
+        console.error(event.error || event.message);
+      });
+    </script>
+    <script defer src="./game.js?v=30"></script>
+  </body>
+</html>

@@ -1,0 +1,364 @@
+:root {
+  color-scheme: dark;
+  --ink: #eff6ff;
+  --muted: #8fa4c7;
+  --panel: #17213b;
+  --line: #2b3b61;
+  --cyan: #35d9ff;
+  --orange: #ff9b3d;
+  --danger: #ff4d6d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 50% -10%, #253866 0, transparent 35rem),
+    linear-gradient(180deg, #10172a 0%, #080d19 100%);
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Arial Black", system-ui, sans-serif;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(53, 217, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(53, 217, 255, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+  content: "";
+  pointer-events: none;
+}
+
+.page-shell {
+  width: min(100% - 24px, 860px);
+  margin: 0 auto;
+  padding: 24px 0 max(24px, env(safe-area-inset-bottom));
+}
+
+.game-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+
+.eyebrow {
+  margin: 0 0 2px;
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.28em;
+}
+
+h1 {
+  margin: 0;
+  color: white;
+  font-size: clamp(28px, 7vw, 48px);
+  font-style: italic;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+  text-shadow: 4px 4px 0 #263963;
+}
+
+.header-help {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: right;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 28px;
+  padding: 2px 5px;
+  border: 1px solid #50638c;
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  background: #202d4d;
+  color: white;
+  font: inherit;
+  text-align: center;
+}
+
+.game-frame {
+  position: relative;
+  overflow: hidden;
+  border: 4px solid #344970;
+  border-radius: 8px;
+  background: #080d19;
+  box-shadow:
+    0 0 0 2px #080d19,
+    0 20px 60px rgba(0, 0, 0, 0.55),
+    0 0 36px rgba(53, 217, 255, 0.08);
+}
+
+#game-container {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 660 / 628;
+  background: #050914;
+}
+
+#game-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.op-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  background: #050914;
+}
+
+.op-image {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 92px;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 92px);
+  object-fit: contain;
+  opacity: 1;
+  transition:
+    opacity 0.26s ease,
+    scale 2.4s ease,
+    translate 2.4s ease;
+  scale: 1;
+}
+
+.op-image.is-loading {
+  opacity: 0.35;
+}
+
+.op-caption {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-height: 92px;
+  display: grid;
+  place-items: center;
+  padding: 18px 28px;
+  border-top: 3px solid rgba(53, 217, 255, 0.52);
+  background: rgba(3, 7, 18, 0.76);
+  color: white;
+  font: 900 25px "Trebuchet MS", "Yu Gothic", "Meiryo", sans-serif;
+  text-align: center;
+  text-shadow: 0 3px 0 #030712, 0 0 16px rgba(0, 0, 0, 0.8);
+}
+
+.op-prompt {
+  position: absolute;
+  right: 0;
+  bottom: 118px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.op-press,
+.op-enter {
+  color: #ffcf4a;
+  font: 900 35px "Arial Black", "Trebuchet MS", sans-serif;
+  text-shadow:
+    0 4px 0 #090b12,
+    0 0 18px rgba(0, 0, 0, 0.9);
+  transform: translateX(-420px);
+}
+
+.op-enter {
+  color: #35d9ff;
+  transform: translateX(420px);
+}
+
+.op-overlay.is-final .op-prompt {
+  opacity: 1;
+}
+
+.op-overlay.is-final .op-press,
+.op-overlay.is-final .op-enter {
+  animation:
+    op-slide-in 0.7s cubic-bezier(0.19, 1, 0.22, 1) forwards,
+    op-blink 1.2s ease-in-out 1s infinite;
+}
+
+.op-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: 90%;
+  color: #ff6b7a;
+  font: 900 18px "Trebuchet MS", "Yu Gothic", "Meiryo", sans-serif;
+  text-align: center;
+  text-shadow: 0 2px 0 #030712;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes op-slide-in {
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes op-blink {
+  50% {
+    opacity: 0.38;
+  }
+}
+
+#loading-message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--cyan);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  pointer-events: none;
+}
+
+#loading-message.loading-error {
+  padding: 24px;
+  color: var(--danger);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.touch-controls {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding: 0 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.d-pad {
+  display: grid;
+  grid-template: repeat(3, 52px) / repeat(3, 52px);
+  gap: 3px;
+}
+
+.touch-button,
+.bomb-button {
+  border: 2px solid #42577f;
+  background: linear-gradient(180deg, #263759, #17233c);
+  color: white;
+  font: 900 20px "Trebuchet MS", sans-serif;
+  box-shadow: 0 5px 0 #0a0f1d;
+  touch-action: none;
+}
+
+.touch-button {
+  border-radius: 8px;
+}
+
+.touch-button:active,
+.touch-button.active,
+.bomb-button:active,
+.bomb-button.active {
+  translate: 0 3px;
+  filter: brightness(1.3);
+  box-shadow: 0 2px 0 #0a0f1d;
+}
+
+.up {
+  grid-area: 1 / 2;
+}
+
+.left {
+  grid-area: 2 / 1;
+}
+
+.down {
+  grid-area: 2 / 2;
+}
+
+.right {
+  grid-area: 2 / 3;
+}
+
+.bomb-button {
+  display: flex;
+  width: 112px;
+  height: 112px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-color: #9d4b5c;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ff5a74, #a51e43);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+.bomb-icon {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 6px;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: #17213b;
+}
+
+footer {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .page-shell {
+    width: min(100% - 12px, 660px);
+    padding-top: 12px;
+  }
+
+  .header-help {
+    display: none;
+  }
+
+  .touch-controls {
+    display: flex;
+  }
+}
+
+@media (max-width: 390px) {
+  .d-pad {
+    grid-template: repeat(3, 46px) / repeat(3, 46px);
+  }
+
+  .bomb-button {
+    width: 98px;
+    height: 98px;
+  }
+}
