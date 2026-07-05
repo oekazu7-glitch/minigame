@@ -6,18 +6,32 @@ const WIDTH = COLS * TILE;
 const HEIGHT = ROWS * TILE + HUD_HEIGHT;
 
 const OPENING_SLIDES = [
-  { key: "op-01", file: "01.png", caption: "01  ある日の地球" },
-  { key: "op-02", file: "02.png", caption: "02  関東地方" },
-  { key: "op-03", file: "03.png", caption: "03  いつも通りYouTube撮影を準備する小松" },
-  { key: "op-04", file: "04.png", caption: "04  YouTubeの動画アップロード" },
-  { key: "op-05", file: "05.png", caption: "05  それを居酒屋で見る怪しげな5人衆" },
-  { key: "op-06", file: "06.png", caption: "06  撮影は順調に進んでいた" },
-  { key: "op-07", file: "07.png", caption: "07  突如消える撮影機材" },
-  { key: "op-08", file: "08.png", caption: "08  5人衆に奪われたのだった" },
-  { key: "op-09", file: "09.png", caption: "09  散り散りに隠された機材" },
-  { key: "op-10", file: "10.png", caption: "10  奪い返すための戦いが始まる" },
+  { key: "op-01", file: "01.png" },
+  { key: "op-02", file: "02.png" },
+  { key: "op-03", file: "03.png" },
+  { key: "op-04", file: "04.png" },
+  { key: "op-05", file: "05.png" },
+  { key: "op-06", file: "06.png" },
+  { key: "op-07", file: "07.png" },
+  { key: "op-08", file: "08.png" },
+  { key: "op-09", file: "09.png" },
+  { key: "op-10", file: "10.png" },
+  { key: "op-11", file: "11.png" },
+  { key: "op-12", file: "12.png" },
+  { key: "op-13", file: "13.png" },
 ];
 const OPENING_IMAGE_FOLDERS = ["OPimage", "Opimage", "opimage"];
+const OPENING_BGM_SRC = "BGM/OP_BGM.mp3";
+const OPENING_SLIDE_DURATION = 4800;
+const OPENING_SLIDE_DURATIONS = [7000, 7000];
+const OPENING_DESCEND_MOTION_DURATION = 7500;
+const OPENING_DESCEND_HOLD_DURATION = 10000;
+const OPENING_FADE_IN_DURATION = 1500;
+const OPENING_SKIP_HOLD_DURATION = 900;
+const STAGE_BGM_SRC = "BGM/STAGE BGM/STAGE BGM_001.mp3";
+const EXPLOSION_SOUND_SRC = "BGM/効果音/Explosion.mp3";
+const BOMB_FUSE_DURATION = 3000;
+const ENEMY_BOMB_FUSE_DURATION = 1500;
 
 const touchState = {
   up: false,
@@ -30,8 +44,8 @@ const touchState = {
 const audioState = {
   context: null,
   musicGain: null,
-  musicTimer: null,
-  musicStep: 0,
+  stageAudio: null,
+  explosionAudio: null,
   stageIndex: 0,
   active: false,
 };
@@ -65,61 +79,46 @@ function playTone(context, destination, frequency, duration, volume, type = "squ
 }
 
 function startStageMusic(stageIndex) {
-  const context = audioContext();
-  if (!context) return;
-  context.resume();
   audioState.stageIndex = stageIndex;
-  audioState.musicStep = 0;
   audioState.active = true;
-  audioState.musicGain.gain.setTargetAtTime(0.055, context.currentTime, 0.03);
-  if (audioState.musicTimer) return;
-
-  const bassPattern = [0, null, 0, null, 3, null, 5, null, 0, null, 7, null, 5, null, 3, null];
-  const leadPattern = [12, null, 15, 19, null, 15, 12, null, 10, null, 12, 15, null, 10, 7, null];
-  const roots = [48, 50, 53, 55, 46];
-  audioState.musicTimer = window.setInterval(() => {
-    if (!audioState.active || context.state !== "running") return;
-    const step = audioState.musicStep % bassPattern.length;
-    const root = roots[audioState.stageIndex % roots.length];
-    const toFrequency = (semitones) => 440 * 2 ** ((root + semitones - 69) / 12);
-    if (bassPattern[step] !== null) {
-      playTone(context, audioState.musicGain, toFrequency(bassPattern[step]), 0.11, 0.58, "triangle");
-    }
-    if (leadPattern[step] !== null) {
-      playTone(context, audioState.musicGain, toFrequency(leadPattern[step]), 0.075, 0.24, "square");
-    }
-    audioState.musicStep += 1;
-  }, 150);
+  const audio = stageBgmAudio();
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
 }
 
 function setStageMusicActive(active) {
   audioState.active = active;
-  const context = audioState.context;
-  if (!context || !audioState.musicGain) return;
-  audioState.musicGain.gain.setTargetAtTime(active ? 0.055 : 0.0001, context.currentTime, 0.05);
+  const audio = audioState.stageAudio;
+  if (!audio) return;
+  if (active) {
+    audio.play().catch(() => {});
+  } else {
+    audio.pause();
+  }
+}
+
+function stageBgmAudio() {
+  if (audioState.stageAudio) return audioState.stageAudio;
+  const audio = new Audio(STAGE_BGM_SRC);
+  audio.loop = true;
+  audio.volume = 0.5;
+  audio.preload = "auto";
+  audioState.stageAudio = audio;
+  return audio;
 }
 
 function playExplosionSound() {
-  const context = audioContext();
-  if (!context || context.state !== "running") return;
-  const gain = context.createGain();
-  gain.gain.value = 0.16;
-  gain.connect(context.destination);
-  playTone(context, gain, 145, 0.22, 0.75, "sawtooth", 42);
-  playTone(context, gain, 78, 0.3, 0.56, "triangle", 32);
+  const audio = explosionSoundAudio().cloneNode();
+  audio.volume = 0.78;
+  audio.play().catch(() => {});
+}
 
-  const noise = context.createBuffer(1, Math.floor(context.sampleRate * 0.12), context.sampleRate);
-  const samples = noise.getChannelData(0);
-  for (let index = 0; index < samples.length; index += 1) {
-    samples[index] = (Math.random() * 2 - 1) * (1 - index / samples.length);
-  }
-  const source = context.createBufferSource();
-  const noiseGain = context.createGain();
-  noiseGain.gain.setValueAtTime(0.22, context.currentTime);
-  noiseGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.12);
-  source.buffer = noise;
-  source.connect(noiseGain).connect(context.destination);
-  source.start();
+function explosionSoundAudio() {
+  if (audioState.explosionAudio) return audioState.explosionAudio;
+  const audio = new Audio(EXPLOSION_SOUND_SRC);
+  audio.preload = "auto";
+  audioState.explosionAudio = audio;
+  return audio;
 }
 
 const ENEMY_TYPES = [
@@ -133,18 +132,56 @@ const ENEMY_TYPES = [
   "tepodon",
 ];
 
-const STAGES = [
-  { name: "FIRST SPARK", walls: 0.48, enemies: [3, 0, 0, 0, 0, 0, 0, 0], speed: 72, fuse: 1800 },
-  { name: "CROSS FIRE", walls: 0.52, enemies: [2, 1, 0, 0, 0, 0, 0, 0], speed: 76, fuse: 1750 },
-  { name: "RED PURSUIT", walls: 0.53, enemies: [2, 1, 0, 1, 0, 0, 0, 0], speed: 78, fuse: 1700 },
-  { name: "PHANTOM LANE", walls: 0.55, enemies: [1, 2, 1, 0, 0, 0, 1, 0], speed: 82, fuse: 1650 },
-  { name: "FUSE RUSH", walls: 0.57, enemies: [1, 1, 1, 1, 1, 0, 0, 0], speed: 86, fuse: 1550 },
-  { name: "HUNTER GRID", walls: 0.58, enemies: [1, 2, 1, 1, 1, 0, 1, 0], speed: 90, fuse: 1500 },
-  { name: "GHOST CIRCUIT", walls: 0.60, enemies: [0, 0, 0, 0, 0, 0, 0, 3], speed: 94, fuse: 1450 },
-  { name: "DANGER ZONE", walls: 0.61, enemies: [1, 2, 2, 2, 1, 1, 1, 1], speed: 98, fuse: 1400 },
-  { name: "BLAST FORTRESS", walls: 0.63, enemies: [1, 2, 2, 1, 2, 2, 2, 1], speed: 102, fuse: 1350 },
-  { name: "FINAL DETONATION", walls: 0.65, enemies: [1, 3, 2, 2, 2, 2, 2, 2], speed: 108, fuse: 1250 },
+const AREAS = [
+  { id: "standard", name: "STANDARD", floor: 0x15284b, floor2: 0x192f57, line: 0x24416d, solid: 0x3e5d8c, solid2: 0x5879a8, brick: 0xc16b3e, brickDark: 0x6c3428 },
+  { id: "coast", name: "COAST", floor: 0x176b86, floor2: 0x1c8aa0, line: 0x7fe7ff, solid: 0xd7c38a, solid2: 0xffe3a1, brick: 0xd89b59, brickDark: 0x8b5b36 },
+  { id: "steel", name: "STEEL CITY", floor: 0x303743, floor2: 0x424b58, line: 0x8791a1, solid: 0x68717e, solid2: 0xa5afbd, brick: 0x8f4a3d, brickDark: 0x462c28 },
+  { id: "forest", name: "FOREST", floor: 0x21482f, floor2: 0x2f623c, line: 0x82d66f, solid: 0x6b6f57, solid2: 0xa4a17c, brick: 0x8a552b, brickDark: 0x4a2f1c },
+  { id: "spaceship", name: "SPACESHIP", floor: 0x101626, floor2: 0x18233c, line: 0x35d9ff, solid: 0x24314f, solid2: 0x6ee7ff, brick: 0x4b7a54, brickDark: 0x173524 },
 ];
+
+const STAGES = [
+  { name: "FIRST SPARK", walls: 0.46, enemies: [3, 0, 0, 0, 0, 0, 0, 0], speed: 72, fuse: 1800 },
+  { name: "CROSS FIRE", walls: 0.49, enemies: [2, 1, 0, 0, 0, 0, 0, 0], speed: 75, fuse: 1760 },
+  { name: "RED PURSUIT", walls: 0.51, enemies: [2, 1, 0, 1, 0, 0, 0, 0], speed: 78, fuse: 1720 },
+  { name: "STANDARD EXIT", walls: 0.53, enemies: [1, 2, 1, 0, 0, 0, 1, 0], speed: 81, fuse: 1680 },
+  { name: "BEACH PATROL", walls: 0.54, enemies: [1, 1, 1, 1, 0, 0, 0, 0], speed: 84, fuse: 1640 },
+  { name: "TIDE HUNTER", walls: 0.55, enemies: [1, 2, 1, 1, 1, 0, 0, 0], speed: 87, fuse: 1600 },
+  { name: "ROCKET SHORE", walls: 0.56, enemies: [0, 0, 0, 0, 0, 0, 0, 3], speed: 90, fuse: 1560 },
+  { name: "COAST STORM", walls: 0.57, enemies: [1, 2, 1, 2, 1, 1, 0, 0], speed: 93, fuse: 1520 },
+  { name: "HOUSE BLOCK", walls: 0.58, enemies: [1, 2, 2, 1, 1, 1, 0, 0], speed: 96, fuse: 1480 },
+  { name: "TOWER FUSE", walls: 0.59, enemies: [1, 1, 2, 2, 1, 1, 1, 0], speed: 99, fuse: 1440 },
+  { name: "SKYLINE BLAST", walls: 0.60, enemies: [1, 2, 2, 1, 2, 1, 1, 1], speed: 102, fuse: 1400 },
+  { name: "STEEL CORE", walls: 0.61, enemies: [1, 2, 2, 2, 1, 2, 1, 1], speed: 105, fuse: 1360 },
+  { name: "FOREST LINE", walls: 0.62, enemies: [1, 2, 2, 1, 2, 2, 1, 1], speed: 108, fuse: 1320 },
+  { name: "MOSS PRESS", walls: 0.63, enemies: [1, 2, 2, 2, 2, 2, 1, 1], speed: 111, fuse: 1280 },
+  { name: "FOREST ALARM", walls: 0.64, enemies: [1, 3, 2, 2, 2, 2, 2, 1], speed: 114, fuse: 1240 },
+  { name: "ROOT HEART", walls: 0.65, enemies: [1, 3, 2, 2, 2, 3, 2, 1], speed: 117, fuse: 1200 },
+  { name: "HULL GATE", walls: 0.66, enemies: [1, 3, 2, 2, 2, 2, 2, 2], speed: 120, fuse: 1180 },
+  { name: "AIRLOCK", walls: 0.67, enemies: [1, 3, 3, 2, 2, 2, 2, 2], speed: 123, fuse: 1160 },
+  { name: "SHIP REACTOR", walls: 0.68, enemies: [1, 3, 3, 2, 3, 2, 2, 2], speed: 126, fuse: 1140 },
+  { name: "FINAL BRIDGE", walls: 0.69, enemies: [1, 4, 3, 2, 3, 3, 3, 2], speed: 130, fuse: 1120 },
+];
+
+const UPGRADE_RARITIES = {
+  common: { label: "COMMON", color: 0x35d9ff },
+  rare: { label: "RARE", color: 0xa879ff },
+  epic: { label: "EPIC", color: 0xffb341 },
+};
+
+const SINGLE_UPGRADE_COST = {
+  punch: 2200,
+  glove: 2400,
+  wallPass: 2600,
+  pierceBomb: 2800,
+  remoteBomb: 3000,
+};
+
+const POWER_MAX = {
+  bombLimit: 8,
+  blastRadius: 8,
+  speedLevel: 8,
+};
 
 function mulberry32(seed) {
   return function random() {
@@ -174,6 +211,15 @@ class BlastGame extends Phaser.Scene {
     this.bombLevel = data.bombLevel ?? 0;
     this.fireLevel = data.fireLevel ?? 0;
     this.speedLevel = data.speedLevel ?? 0;
+    this.bombLevel = Math.min(this.bombLevel, POWER_MAX.bombLimit - 1);
+    this.fireLevel = Math.min(this.fireLevel, POWER_MAX.blastRadius - 2);
+    this.speedLevel = Math.min(this.speedLevel, POWER_MAX.speedLevel);
+    this.punch = data.punch ?? false;
+    this.glove = data.glove ?? false;
+    this.wallPass = data.wallPass ?? false;
+    this.pierceBomb = data.pierceBomb ?? false;
+    this.remoteBomb = data.remoteBomb ?? false;
+    this.heartCharges = data.heartCharges ?? 0;
     this.bootShowIntro = data.showIntro ?? data.stageIndex === undefined;
     this.bootStartImmediately = data.startImmediately ?? false;
   }
@@ -235,6 +281,118 @@ class BlastGame extends Phaser.Scene {
       g.fillStyle(0xffd35a, 0.9).fillRect(5, 5, 7, 4).fillRect(24, 18, 8, 4);
     });
 
+    AREAS.forEach((theme) => {
+      make(`${theme.id}-floor`, (g) => {
+        g.fillStyle(theme.floor).fillRect(0, 0, TILE, TILE);
+        g.fillStyle(theme.floor2).fillRect(2, 2, TILE - 4, TILE - 4);
+        g.lineStyle(1, theme.line, 0.5).strokeRect(4, 4, TILE - 8, TILE - 8);
+        g.fillStyle(theme.line, 0.22).fillCircle(8, 8, 2).fillCircle(36, 34, 2);
+        if (theme.id === "coast") g.fillStyle(0xffffff, 0.28).fillRect(6, 17, 32, 3);
+        if (theme.id === "steel") g.fillStyle(0x10151d, 0.35).fillRect(8, 8, 28, 2).fillRect(8, 34, 28, 2);
+        if (theme.id === "forest") g.fillStyle(0x17351f, 0.35).fillCircle(12, 13, 4).fillCircle(32, 28, 5);
+        if (theme.id === "spaceship") g.fillStyle(0xffffff, 0.55).fillCircle(12, 13, 1).fillCircle(32, 27, 1);
+      });
+
+      make(`${theme.id}-solid`, (g) => {
+        if (theme.id === "coast") {
+          g.fillStyle(0xc99a55).fillRect(5, 13, 34, 26);
+          g.fillStyle(0xf0cf82).fillRect(8, 10, 28, 27);
+          g.fillStyle(0xf7e0a4).fillRect(10, 22, 24, 4);
+          g.fillStyle(0x8b5b36).fillRect(18, 27, 8, 10);
+          g.fillStyle(0xf0cf82).fillTriangle(8, 10, 14, 3, 20, 10);
+          g.fillTriangle(24, 10, 30, 3, 36, 10);
+          g.lineStyle(2, 0x8b5b36).strokeRect(8, 10, 28, 27);
+          return;
+        }
+        if (theme.id === "steel") {
+          g.fillStyle(0x1e2630).fillRect(6, 6, 32, 34);
+          g.fillStyle(0x6f7d8f).fillRect(9, 3, 26, 37);
+          g.fillStyle(0xb5c2d1).fillRect(13, 8, 5, 5).fillRect(25, 8, 5, 5);
+          g.fillRect(13, 18, 5, 5).fillRect(25, 18, 5, 5).fillRect(13, 28, 5, 5).fillRect(25, 28, 5, 5);
+          g.lineStyle(2, 0x26313f).strokeRect(9, 3, 26, 37);
+          return;
+        }
+        if (theme.id === "forest") {
+          g.fillStyle(0x3b3f35).fillCircle(22, 23, 17);
+          g.fillStyle(0x777a65).fillCircle(22, 22, 15);
+          g.fillStyle(0x9a9a83).fillCircle(16, 18, 5).fillCircle(27, 27, 4);
+          g.lineStyle(3, 0x2f352b).strokeCircle(22, 22, 16);
+          return;
+        }
+        if (theme.id === "spaceship") {
+          g.fillStyle(0x111827).fillRoundedRect(4, 5, 36, 34, 4);
+          g.fillStyle(0x56657a).fillRoundedRect(7, 8, 30, 28, 3);
+          g.fillStyle(0xa9bacf).fillRect(10, 11, 24, 5).fillRect(10, 27, 24, 5);
+          g.lineStyle(2, 0x1d2a44).strokeRoundedRect(6, 7, 32, 30, 3);
+          return;
+        }
+        g.fillStyle(0x10172a).fillRoundedRect(1, 1, 42, 42, 5);
+        g.fillStyle(theme.solid).fillRoundedRect(4, 4, 36, 33, 4);
+        g.fillStyle(theme.solid2).fillRect(7, 7, 30, 5);
+        g.fillStyle(0x0b1326, 0.45).fillRect(5, 35, 34, 5);
+        g.lineStyle(2, theme.line, 0.6).strokeRoundedRect(2, 2, 40, 40, 5);
+      });
+
+      make(`${theme.id}-breakable`, (g) => {
+        if (theme.id === "coast") {
+          g.fillStyle(0x0b1326, 0.18).fillEllipse(22, 33, 32, 10);
+          g.fillStyle(0xf6d7b0).fillEllipse(22, 24, 30, 25);
+          g.fillStyle(0xffe8cb).fillEllipse(22, 21, 24, 18);
+          g.lineStyle(2, 0xc7906a);
+          [9, 15, 22, 29, 35].forEach((x) => g.strokeLineShape(new Phaser.Geom.Line(22, 12, x, 32)));
+          g.fillStyle(0xe8b186).fillCircle(22, 26, 4);
+          return;
+        }
+        if (theme.id === "steel") {
+          g.fillStyle(0x3b2520).fillRect(6, 14, 32, 24);
+          g.fillStyle(0xa24d34).fillRect(9, 16, 26, 22);
+          g.fillStyle(0x6f2f24).fillTriangle(5, 14, 22, 4, 39, 14);
+          g.fillStyle(0xffd36b).fillRect(14, 22, 6, 6).fillRect(25, 22, 6, 6);
+          g.fillStyle(0x3b2520).fillRect(19, 29, 7, 9);
+          return;
+        }
+        if (theme.id === "forest") {
+          g.fillStyle(0x3c2415).fillEllipse(22, 31, 28, 12);
+          g.fillStyle(0x8a552b).fillRect(10, 15, 24, 18);
+          g.fillStyle(0xb8793c).fillEllipse(22, 15, 25, 12);
+          g.lineStyle(2, 0x5a351f).strokeEllipse(22, 15, 24, 11);
+          g.lineStyle(2, 0x6a3f24).strokeCircle(22, 15, 5).strokeCircle(22, 15, 10);
+          return;
+        }
+        if (theme.id === "spaceship") {
+          g.fillStyle(0x123322).fillRect(4, 4, 36, 36);
+          g.fillStyle(0x2d8f4f).fillRect(7, 7, 30, 30);
+          g.lineStyle(2, 0x9effb4);
+          g.strokeLineShape(new Phaser.Geom.Line(12, 8, 12, 36));
+          g.strokeLineShape(new Phaser.Geom.Line(8, 18, 36, 18));
+          g.strokeLineShape(new Phaser.Geom.Line(22, 8, 34, 30));
+          g.fillStyle(0xffd35a).fillCircle(12, 18, 3).fillCircle(30, 29, 3);
+          return;
+        }
+        g.fillStyle(theme.brickDark).fillRect(1, 1, 42, 42);
+        g.fillStyle(theme.brick).fillRect(3, 3, 38, 36);
+        g.lineStyle(3, theme.brickDark);
+        g.strokeLineShape(new Phaser.Geom.Line(3, 14, 41, 14));
+        g.strokeLineShape(new Phaser.Geom.Line(3, 28, 41, 28));
+        g.strokeLineShape(new Phaser.Geom.Line(14, 3, 14, 14));
+        g.strokeLineShape(new Phaser.Geom.Line(31, 14, 31, 28));
+        g.strokeLineShape(new Phaser.Geom.Line(17, 28, 17, 41));
+        g.fillStyle(theme.solid2, 0.55).fillRect(5, 5, 7, 4);
+      });
+
+      make(`${theme.id}-breakable-burning`, (g) => {
+        g.fillStyle(0x5e1720).fillRect(1, 1, 42, 42);
+        g.fillStyle(0xd9402d).fillRect(3, 3, 38, 36);
+        g.lineStyle(3, 0x6f1920);
+        g.strokeLineShape(new Phaser.Geom.Line(3, 14, 41, 14));
+        g.strokeLineShape(new Phaser.Geom.Line(3, 28, 41, 28));
+        g.strokeLineShape(new Phaser.Geom.Line(14, 3, 14, 14));
+        g.strokeLineShape(new Phaser.Geom.Line(31, 14, 31, 28));
+        g.strokeLineShape(new Phaser.Geom.Line(17, 28, 17, 41));
+        g.fillStyle(0xffd35a, 0.9).fillRect(5, 5, 7, 4).fillRect(24, 18, 8, 4);
+      });
+    });
+
     make("player", (g) => {
       g.fillStyle(0x0b1326).fillEllipse(22, 28, 31, 27);
       g.fillStyle(0xf4f7ff).fillRoundedRect(8, 9, 28, 25, 10);
@@ -261,9 +419,10 @@ class BlastGame extends Phaser.Scene {
 
     make("enemy-pakunman", (g) => {
       g.fillStyle(0x0b1326, 0.75).fillEllipse(22, 35, 33, 9);
-      g.fillStyle(0x35d9ff).slice(22, 23, 17, Phaser.Math.DegToRad(35), Phaser.Math.DegToRad(325), false).fillPath();
-      g.fillStyle(0x07101f).fillCircle(26, 14, 3);
-      g.fillStyle(0xffffff).fillCircle(28, 13, 1);
+      g.fillStyle(0x35d9ff).slice(22, 22, 17, Phaser.Math.DegToRad(32), Phaser.Math.DegToRad(328), false).fillPath();
+      g.fillStyle(0x7de9ff).slice(22, 22, 13, Phaser.Math.DegToRad(42), Phaser.Math.DegToRad(318), false).fillPath();
+      g.fillStyle(0x07101f).fillCircle(21, 13, 3);
+      g.fillStyle(0xffffff).fillCircle(22, 12, 1);
     });
 
     make("enemy-chevalier", (g) => {
@@ -363,8 +522,9 @@ class BlastGame extends Phaser.Scene {
 
   createInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,R,P,ENTER");
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,R,P,E,ENTER");
     this.keys.SPACE.on("down", () => this.placeBomb());
+    this.keys.E.on("down", () => this.useActionPower());
     this.keys.R.on("down", () => this.restartStage());
     this.keys.P.on("down", () => this.togglePause());
     this.keys.ENTER.on("down", () => {
@@ -377,11 +537,11 @@ class BlastGame extends Phaser.Scene {
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
     });
-    this.shopKeys.one.on("down", () => this.buyUpgrade("bomb"));
-    this.shopKeys.two.on("down", () => this.buyUpgrade("fire"));
-    this.shopKeys.three.on("down", () => this.buyUpgrade("speed"));
+    this.shopKeys.one.on("down", () => this.buyUpgrade(0));
+    this.shopKeys.two.on("down", () => this.buyUpgrade(1));
+    this.shopKeys.three.on("down", () => this.buyUpgrade(2));
     this.shopKeys.esc.on("down", () => this.advanceToNextStage());
-    this.input.keyboard.on("keydown", (event) => this.handleDebugStageJump(event));
+    this.input.keyboard.on("keydown", (event) => this.handleDebugConsoleKey(event));
 
     document.querySelectorAll("[data-control]").forEach((button) => {
       if (button.dataset.inputBound === "true") return;
@@ -427,6 +587,14 @@ class BlastGame extends Phaser.Scene {
     };
   }
 
+  areaForStage(index = this.stageIndex) {
+    return AREAS[Math.min(AREAS.length - 1, Math.floor(index / 4))];
+  }
+
+  tileTexture(type) {
+    return `${this.areaForStage().id}-${type}`;
+  }
+
   startStage(index, showIntro = false, startImmediately = false) {
     this.stageRunId = (this.stageRunId ?? 0) + 1;
     this.stageIndex = index;
@@ -443,9 +611,12 @@ class BlastGame extends Phaser.Scene {
     this.activeBombs = 0;
     this.bombLimit = 1 + this.bombLevel;
     this.blastRadius = 2 + this.fireLevel;
+    this.killCombo = null;
     this.exitOpen = false;
     this.exitCell = null;
     this.lastBombAt = 0;
+    this.lastBombPunchAt = 0;
+    this.playerFacing = { x: 1, y: 0 };
     this.clearStageObjects();
     this.buildStage();
     this.updateHud();
@@ -507,7 +678,7 @@ class BlastGame extends Phaser.Scene {
       for (let col = 0; col < COLS; col += 1) {
         const x = col * TILE + TILE / 2;
         const y = HUD_HEIGHT + row * TILE + TILE / 2;
-        this.floorGroup.add(this.add.image(x, y, "floor"));
+        this.floorGroup.add(this.add.image(x, y, this.tileTexture("floor")));
         const solid =
           row === 0 ||
           row === ROWS - 1 ||
@@ -515,7 +686,7 @@ class BlastGame extends Phaser.Scene {
           col === COLS - 1 ||
           (row % 2 === 0 && col % 2 === 0);
         if (solid) {
-          this.solidWalls.create(x, y, "solid");
+          this.solidWalls.create(x, y, this.tileTexture("solid"));
           this.solidCells.add(cellKey(col, row));
         }
       }
@@ -538,7 +709,7 @@ class BlastGame extends Phaser.Scene {
           const wall = this.breakableWalls.create(
             col * TILE + TILE / 2,
             HUD_HEIGHT + row * TILE + TILE / 2,
-            "breakable",
+            this.tileTexture("breakable"),
           );
           wall.gridCol = col;
           wall.gridRow = row;
@@ -554,7 +725,7 @@ class BlastGame extends Phaser.Scene {
     );
     let exitWall = wallCells[Math.floor(this.random() * wallCells.length)];
     if (!exitWall) {
-      exitWall = this.breakableWalls.create(TILE * 5.5, HUD_HEIGHT + TILE * 1.5, "breakable");
+      exitWall = this.breakableWalls.create(TILE * 5.5, HUD_HEIGHT + TILE * 1.5, this.tileTexture("breakable"));
       exitWall.gridCol = 5;
       exitWall.gridRow = 1;
       this.breakableByCell.set(cellKey(5, 1), exitWall);
@@ -579,7 +750,12 @@ class BlastGame extends Phaser.Scene {
     );
 
     this.physics.add.collider(this.player, this.solidWalls);
-    this.physics.add.collider(this.player, this.breakableWalls);
+    this.physics.add.collider(
+      this.player,
+      this.breakableWalls,
+      undefined,
+      (_player, wall) => !this.wallPass || wall.burning,
+    );
     this.physics.add.overlap(this.player, this.flames, () => this.queuePlayerDeath());
     this.physics.add.overlap(this.player, this.enemies, () => this.queuePlayerDeath());
 
@@ -589,7 +765,7 @@ class BlastGame extends Phaser.Scene {
       this.enemies,
       this.breakableWalls,
       (enemy) => this.turnEnemy(enemy),
-      (enemy, wall) => enemy.enemyType !== "ghost" || wall.burning,
+      (enemy) => enemy.enemyType !== "ghost",
     );
     this.physics.add.collider(
       this.enemies,
@@ -637,6 +813,11 @@ class BlastGame extends Phaser.Scene {
         enemy.baseMoveSpeed = enemy.moveSpeed;
         enemy.moveDirection = { x: 0, y: 0 };
         enemy.lastCenterKey = cellKey(cell.col, cell.row);
+        enemy.lastMoveX = enemy.x;
+        enemy.lastMoveY = enemy.y;
+        enemy.stuckSince = this.time.now;
+        enemy.pakunmanTurnsUntilChange = type === "pakunman" ? 2 + Math.floor(this.random() * 2) : 0;
+        enemy.pakunmanBaseScale = 1;
         enemy.pendingTurn = false;
         enemy.nextRetryAt = 0;
         enemy.nextBakudasoAt = type === "bakudaso" ? this.time.now + 6500 + this.random() * 1000 : 0;
@@ -661,7 +842,7 @@ class BlastGame extends Phaser.Scene {
     this.gameActive = false;
     this.physics.world.isPaused = true;
     const title = `STAGE ${String(this.stageIndex + 1).padStart(2, "0")}`;
-    this.showOverlay(title, this.stageConfig.name, "READY", "stage");
+    this.showOverlay(title, `${this.areaForStage().name}\n${this.stageConfig.name}`, "READY", "stage");
     this.time.delayedCall(1350, () => this.dismissOverlay());
   }
 
@@ -775,6 +956,12 @@ class BlastGame extends Phaser.Scene {
       const offsetX = centerX - this.player.x;
       if (Math.abs(offsetX) <= 13) vx = Phaser.Math.Clamp(offsetX * 10, -96, 96);
     }
+    if (vx !== 0 || vy !== 0) {
+      this.playerFacing = Math.abs(vx) >= Math.abs(vy)
+        ? { x: Math.sign(vx), y: 0 }
+        : { x: 0, y: Math.sign(vy) };
+      this.tryPunchBomb(this.playerFacing);
+    }
     this.player.setVelocity(vx, vy);
     if (vx !== 0) this.player.setFlipX(vx < 0);
   }
@@ -788,6 +975,7 @@ class BlastGame extends Phaser.Scene {
       if (enemy.enemyType === "tepodon" && this.updateTepodon(enemy, time)) return;
       if (enemy.enemyType === "chevalier") this.updateChevalier(enemy, time);
       if (enemy.enemyType === "pakunman") this.pakunmanEatNearbyBomb(enemy);
+      if (enemy.enemyType === "pakunman") this.animatePakunman(enemy, time);
 
       const col = Phaser.Math.Clamp(Math.round((enemy.x - TILE / 2) / TILE), 1, COLS - 2);
       const row = Phaser.Math.Clamp(
@@ -798,6 +986,10 @@ class BlastGame extends Phaser.Scene {
       const centerX = col * TILE + TILE / 2;
       const centerY = HUD_HEIGHT + row * TILE + TILE / 2;
       const key = cellKey(col, row);
+
+      if (enemy.enemyType === "ghost" && this.recoverStuckGhost(enemy, time, col, row, centerX, centerY)) {
+        return;
+      }
 
       if (enemy.pendingTurn) {
         const turnCol = enemy.turnCol ?? col;
@@ -835,6 +1027,33 @@ class BlastGame extends Phaser.Scene {
     });
   }
 
+  recoverStuckGhost(enemy, time, col, row, centerX, centerY) {
+    const moved = Phaser.Math.Distance.Between(
+      enemy.x,
+      enemy.y,
+      enemy.lastMoveX ?? enemy.x,
+      enemy.lastMoveY ?? enemy.y,
+    );
+    if (moved > 1.4) {
+      enemy.lastMoveX = enemy.x;
+      enemy.lastMoveY = enemy.y;
+      enemy.stuckSince = time;
+      return false;
+    }
+    if (time - (enemy.stuckSince ?? time) < 520) return false;
+
+    enemy.setPosition(centerX, centerY);
+    enemy.pendingTurn = false;
+    enemy.turnCol = null;
+    enemy.turnRow = null;
+    enemy.lastCenterKey = cellKey(col, row);
+    enemy.lastMoveX = enemy.x;
+    enemy.lastMoveY = enemy.y;
+    enemy.stuckSince = time;
+    this.chooseEnemyDirection(enemy, col, row, true);
+    return true;
+  }
+
   availableEnemyDirections(enemy, col, row) {
     return [
       { x: 1, y: 0 },
@@ -846,12 +1065,12 @@ class BlastGame extends Phaser.Scene {
       if (this.solidCells.has(key)) return false;
       if (this.bombByCell.has(key) && enemy.enemyType !== "pakunman") return false;
       const wall = this.breakableByCell.get(key);
-      if (wall?.burning) return false;
+      if (wall?.burning && enemy.enemyType !== "ghost") return false;
       return enemy.enemyType === "ghost" || !wall;
     });
   }
 
-  chooseEnemyDirection(enemy, col, row) {
+  chooseEnemyDirection(enemy, col, row, forceTurn = false) {
     const available = this.availableEnemyDirections(enemy, col, row);
     if (available.length === 0) {
       enemy.moveDirection = { x: 0, y: 0 };
@@ -873,6 +1092,15 @@ class BlastGame extends Phaser.Scene {
       return;
     }
 
+    if (enemy.enemyType === "ghost" && canContinueForward && !forceTurn && this.random() < 0.72) {
+      enemy.nextRetryAt = 0;
+      enemy.setVelocity(
+        enemy.moveDirection.x * enemy.moveSpeed,
+        enemy.moveDirection.y * enemy.moveSpeed,
+      );
+      return;
+    }
+
     const reverse = {
       x: -enemy.moveDirection.x,
       y: -enemy.moveDirection.y,
@@ -881,16 +1109,16 @@ class BlastGame extends Phaser.Scene {
       (direction) => direction.x !== reverse.x || direction.y !== reverse.y,
     );
     const choices = forwardChoices.length > 0 ? forwardChoices : available;
+    const bombTarget = enemy.enemyType === "pakunman" ? this.nearestBombCell(col, row) : null;
     const shouldChase =
       enemy.enemyType === "chaser" ||
-      enemy.enemyType === "pakunman" ||
+      Boolean(bombTarget) ||
       (enemy.enemyType === "kedama" && enemy.kedamaBurning);
 
     let direction;
     if (shouldChase) {
-      const target = enemy.enemyType === "pakunman" ? this.nearestBombCell(col, row) : null;
-      const playerCol = target?.col ?? Math.floor(this.player.x / TILE);
-      const playerRow = target?.row ?? Math.floor((this.player.y - HUD_HEIGHT) / TILE);
+      const playerCol = bombTarget?.col ?? Math.floor(this.player.x / TILE);
+      const playerRow = bombTarget?.row ?? Math.floor((this.player.y - HUD_HEIGHT) / TILE);
       const bestDistance = Math.min(
         ...choices.map(
           (candidate) =>
@@ -905,6 +1133,19 @@ class BlastGame extends Phaser.Scene {
           bestDistance,
       );
       direction = bestChoices[Math.floor(this.random() * bestChoices.length)];
+    } else if (enemy.enemyType === "pakunman" && canContinueForward && !forceTurn) {
+      enemy.pakunmanTurnsUntilChange = Math.max(0, (enemy.pakunmanTurnsUntilChange ?? 2) - 1);
+      if (enemy.pakunmanTurnsUntilChange > 0) {
+        direction = enemy.moveDirection;
+      } else {
+        const turnChoices = choices.filter(
+          (candidate) =>
+            candidate.x !== enemy.moveDirection.x || candidate.y !== enemy.moveDirection.y,
+        );
+        const pakunmanChoices = turnChoices.length > 0 ? turnChoices : choices;
+        direction = pakunmanChoices[Math.floor(this.random() * pakunmanChoices.length)];
+        enemy.pakunmanTurnsUntilChange = 2 + Math.floor(this.random() * 2);
+      }
     } else {
       direction = choices[Math.floor(this.random() * choices.length)];
     }
@@ -913,6 +1154,25 @@ class BlastGame extends Phaser.Scene {
     enemy.nextRetryAt = 0;
     enemy.setVelocity(direction.x * enemy.moveSpeed, direction.y * enemy.moveSpeed);
     if (enemy.enemyType === "tepodon") this.rotateTepodon(enemy, direction);
+    if (enemy.enemyType === "pakunman") this.rotatePakunman(enemy, direction);
+  }
+
+  rotatePakunman(enemy, direction) {
+    if (!direction) return;
+    if (direction.x > 0) enemy.setAngle(0);
+    else if (direction.x < 0) enemy.setAngle(180);
+    else if (direction.y > 0) enemy.setAngle(90);
+    else if (direction.y < 0) enemy.setAngle(-90);
+  }
+
+  animatePakunman(enemy, time) {
+    const moving = Math.abs(enemy.body.velocity.x) + Math.abs(enemy.body.velocity.y) > 2;
+    if (!moving) {
+      enemy.setScale(1);
+      return;
+    }
+    const open = (Math.sin(time * 0.022) + 1) / 2;
+    enemy.setScale(0.88 + open * 0.18, 1.08 - open * 0.1);
   }
 
   nearestBombCell(col, row) {
@@ -1128,7 +1388,7 @@ class BlastGame extends Phaser.Scene {
     enemy.setVelocity(0, 0);
     this.createExplosionPattern(col, row, 8, enemy);
     this.cameras.main.shake(140, 0.008);
-    this.score += this.enemyScore(enemy.enemyType);
+    this.awardEnemyScore(enemy);
     this.tweens.add({
       targets: enemy,
       alpha: 0,
@@ -1147,8 +1407,8 @@ class BlastGame extends Phaser.Scene {
     enemy.setTexture("bomb");
     enemy.setVelocity(0, 0);
     enemy.moveDirection = { x: 0, y: 0 };
-    enemy.bakudasoExplodeAt = time + 1300;
-    this.time.delayedCall(1300, () => this.explodeBakudaso(enemy));
+    enemy.bakudasoExplodeAt = time + ENEMY_BOMB_FUSE_DURATION;
+    this.time.delayedCall(ENEMY_BOMB_FUSE_DURATION, () => this.explodeBakudaso(enemy));
   }
 
   explodeBakudaso(enemy) {
@@ -1217,6 +1477,8 @@ class BlastGame extends Phaser.Scene {
     bomb.gridRow = row;
     bomb.ownerClear = false;
     bomb.exploded = false;
+    bomb.remote = this.remoteBomb;
+    bomb.createdAt = this.time.now;
     bomb.setDepth(3);
     this.bombByCell.set(key, bomb);
     this.activeBombs += 1;
@@ -1228,7 +1490,9 @@ class BlastGame extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
     });
-    bomb.fuseEvent = this.time.delayedCall(this.stageConfig.fuse, () => this.explodeBomb(bomb));
+    if (!this.remoteBomb) {
+      bomb.fuseEvent = this.time.delayedCall(BOMB_FUSE_DURATION, () => this.explodeBomb(bomb));
+    }
   }
 
   updateBombCollision() {
@@ -1256,6 +1520,87 @@ class BlastGame extends Phaser.Scene {
     this.cameras.main.shake(90, 0.004);
   }
 
+  useActionPower() {
+    if (!this.gameActive || this.isPaused || !this.player?.active) return;
+    const direction = this.playerFacing ?? { x: 1, y: 0 };
+    if (this.glove && this.throwAdjacentBomb(direction)) return;
+    if (this.remoteBomb) this.detonateOldestRemoteBomb();
+  }
+
+  detonateOldestRemoteBomb() {
+    let oldest = null;
+    this.bombs.children.iterate((bomb) => {
+      if (!bomb?.active || bomb.exploded || !bomb.remote) return;
+      if (!oldest || (bomb.createdAt ?? 0) < (oldest.createdAt ?? 0)) oldest = bomb;
+    });
+    if (oldest) this.explodeBomb(oldest);
+  }
+
+  tryPunchBomb(direction) {
+    if (!this.punch || this.time.now - this.lastBombPunchAt < 280) return false;
+    if (!direction || (direction.x === 0 && direction.y === 0)) return false;
+    const playerCol = Phaser.Math.Clamp(Math.floor(this.player.x / TILE), 1, COLS - 2);
+    const playerRow = Phaser.Math.Clamp(Math.floor((this.player.y - HUD_HEIGHT) / TILE), 1, ROWS - 2);
+    const bomb = this.bombByCell.get(cellKey(playerCol + direction.x, playerRow + direction.y));
+    if (!bomb) return false;
+    const moved = this.moveBombToCell(bomb, bomb.gridCol + direction.x, bomb.gridRow + direction.y, 90);
+    if (moved) this.lastBombPunchAt = this.time.now;
+    return moved;
+  }
+
+  throwAdjacentBomb(direction) {
+    if (!direction || (direction.x === 0 && direction.y === 0)) return false;
+    const playerCol = Phaser.Math.Clamp(Math.floor(this.player.x / TILE), 1, COLS - 2);
+    const playerRow = Phaser.Math.Clamp(Math.floor((this.player.y - HUD_HEIGHT) / TILE), 1, ROWS - 2);
+    const bomb = this.bombByCell.get(cellKey(playerCol + direction.x, playerRow + direction.y));
+    if (!bomb) return false;
+
+    let targetCol = bomb.gridCol;
+    let targetRow = bomb.gridRow;
+    for (let distance = 1; distance <= 3; distance += 1) {
+      const nextCol = bomb.gridCol + direction.x * distance;
+      const nextRow = bomb.gridRow + direction.y * distance;
+      if (!this.canBombMoveTo(nextCol, nextRow)) break;
+      targetCol = nextCol;
+      targetRow = nextRow;
+    }
+    if (targetCol === bomb.gridCol && targetRow === bomb.gridRow) return false;
+    return this.moveBombToCell(bomb, targetCol, targetRow, 180);
+  }
+
+  canBombMoveTo(col, row) {
+    const key = cellKey(col, row);
+    return (
+      col > 0 &&
+      col < COLS - 1 &&
+      row > 0 &&
+      row < ROWS - 1 &&
+      !this.solidCells.has(key) &&
+      !this.breakableByCell.has(key) &&
+      !this.bombByCell.has(key)
+    );
+  }
+
+  moveBombToCell(bomb, col, row, duration) {
+    if (!bomb?.active || bomb.exploded || !this.canBombMoveTo(col, row)) return false;
+    this.bombByCell.delete(cellKey(bomb.gridCol, bomb.gridRow));
+    bomb.gridCol = col;
+    bomb.gridRow = row;
+    bomb.ownerClear = true;
+    this.bombByCell.set(cellKey(col, row), bomb);
+    this.physics.add.collider(this.player, bomb);
+    this.tweens.add({
+      targets: bomb,
+      x: col * TILE + TILE / 2,
+      y: HUD_HEIGHT + row * TILE + TILE / 2,
+      duration,
+      ease: "Sine.Out",
+      onUpdate: () => bomb.body.updateFromGameObject(),
+      onComplete: () => bomb.body.updateFromGameObject(),
+    });
+    return true;
+  }
+
   createExplosionPattern(originCol, originRow, radius, sourceEnemy = null) {
     playExplosionSound();
     this.createFlame(originCol, originRow, sourceEnemy);
@@ -1280,7 +1625,7 @@ class BlastGame extends Phaser.Scene {
         const wall = this.breakableByCell.get(key);
         if (wall) {
           this.destroyWall(wall);
-          break;
+          if (!this.pierceBomb) break;
         }
       }
     });
@@ -1318,7 +1663,7 @@ class BlastGame extends Phaser.Scene {
     wall.burning = true;
     const key = cellKey(wall.gridCol, wall.gridRow);
     const wasExit = wall.gridCol === this.exitCell.col && wall.gridRow === this.exitCell.row;
-    wall.setTexture("breakable-burning");
+    wall.setTexture(this.tileTexture("breakable-burning"));
     this.tweens.add({
       targets: wall,
       alpha: 0,
@@ -1409,7 +1754,7 @@ class BlastGame extends Phaser.Scene {
     enemy.dying = true;
     enemy.body.enable = false;
     enemy.setVelocity(0, 0);
-    this.score += this.enemyScore(enemy.enemyType);
+    this.awardEnemyScore(enemy);
     this.tweens.add({
       targets: enemy,
       alpha: 0,
@@ -1434,6 +1779,41 @@ class BlastGame extends Phaser.Scene {
       kedama: 400,
       tepodon: 500,
     }[type] ?? 100;
+  }
+
+  awardEnemyScore(enemy) {
+    const now = this.time.now;
+    if (!this.killCombo || now - this.killCombo.lastAt > 180) {
+      this.killCombo = { count: 0, lastAt: now };
+    }
+    this.killCombo.count += 1;
+    this.killCombo.lastAt = now;
+    const multiplier = 1 + Math.max(0, this.killCombo.count - 1) * 0.5;
+    const base = this.enemyScore(enemy.enemyType);
+    const gained = Math.round(base * multiplier);
+    this.score += gained;
+    this.showScorePopup(enemy.x, enemy.y - 18, gained, multiplier);
+    this.updateHud();
+  }
+
+  showScorePopup(x, y, gained, multiplier) {
+    const label = multiplier > 1 ? `+${gained} x${multiplier.toFixed(1)}` : `+${gained}`;
+    const popup = this.add
+      .text(x, y, label, {
+        ...this.hudStyle(15),
+        color: multiplier > 1 ? "#ffb341" : "#ffffff",
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+    this.tweens.add({
+      targets: popup,
+      y: y - 24,
+      alpha: 0,
+      scale: multiplier > 1 ? 1.25 : 1,
+      duration: 680,
+      ease: "Sine.Out",
+      onComplete: () => popup.destroy(),
+    });
   }
 
   igniteKedama(enemy) {
@@ -1469,7 +1849,7 @@ class BlastGame extends Phaser.Scene {
     enemy.setVelocity(0, 0);
     this.createExplosionPattern(col, row, 8, enemy);
     this.cameras.main.shake(140, 0.008);
-    this.score += this.enemyScore(enemy.enemyType);
+    this.awardEnemyScore(enemy);
     this.tweens.add({
       targets: enemy,
       alpha: 0,
@@ -1491,6 +1871,22 @@ class BlastGame extends Phaser.Scene {
     ) {
       return;
     }
+    if (this.heartCharges > 0) {
+      this.heartCharges -= 1;
+      this.playerInvincibleUntil = this.time.now + 1400;
+      this.updateHud();
+      this.tweens.add({
+        targets: this.player,
+        alpha: 0.25,
+        duration: 80,
+        yoyo: true,
+        repeat: 8,
+        onComplete: () => {
+          if (this.player?.active) this.player.setAlpha(1);
+        },
+      });
+      return;
+    }
     this.player.dying = true;
     this.playerDeathPending = true;
     this.gameActive = false;
@@ -1501,6 +1897,7 @@ class BlastGame extends Phaser.Scene {
     if (!this.playerDeathPending) return;
     this.playerDeathPending = false;
     this.lives -= 1;
+    this.clearTemporaryPowerUpsOnDeath();
     this.updateHud();
     this.player.body.enable = false;
     this.cameras.main.shake(240, 0.012);
@@ -1513,6 +1910,25 @@ class BlastGame extends Phaser.Scene {
       ease: "Back.In",
     });
     this.deathRestartAt = time + 520;
+  }
+
+  clearTemporaryPowerUpsOnDeath() {
+    const hadRemoteBomb = this.remoteBomb;
+    this.punch = false;
+    this.glove = false;
+    this.wallPass = false;
+    this.pierceBomb = false;
+    this.remoteBomb = false;
+
+    if (!hadRemoteBomb) return;
+    this.bombs.children.iterate((bomb) => {
+      if (!bomb?.active || bomb.exploded || bomb.fuseEvent) return;
+      bomb.remote = false;
+      bomb.fuseEvent = this.time.delayedCall(
+        BOMB_FUSE_DURATION,
+        () => this.explodeBomb(bomb),
+      );
+    });
   }
 
   finishPlayerDeath() {
@@ -1564,7 +1980,7 @@ class BlastGame extends Phaser.Scene {
     if (this.stageIndex >= STAGES.length - 1) {
       this.showOverlay(
         "ALL CLEAR!",
-        `FINAL SCORE  ${this.score}\n10 STAGES COMPLETE`,
+        `FINAL SCORE  ${this.score}\n20 STAGES COMPLETE`,
         "TAP / ENTER TO PLAY AGAIN",
         "victory",
       );
@@ -1579,13 +1995,241 @@ class BlastGame extends Phaser.Scene {
     }
   }
 
-  upgradeCost(type) {
+  upgradeLevelCost(type, level) {
     const costs = {
-      bomb: 500 + this.bombLevel * 300,
-      fire: 600 + this.fireLevel * 350,
-      speed: 450 + this.speedLevel * 250,
+      bomb: 500 + level * 300,
+      fire: 600 + level * 350,
+      speed: 450 + level * 250,
     };
-    return costs[type];
+    return costs[type] ?? 0;
+  }
+
+  upgradeMultiCost(type, amount, extra = 0) {
+    const current = type === "bomb" ? this.bombLevel : type === "fire" ? this.fireLevel : this.speedLevel;
+    let cost = extra;
+    for (let index = 0; index < amount; index += 1) {
+      cost += this.upgradeLevelCost(type, current + index);
+    }
+    return cost;
+  }
+
+  lifeUpgradeCost(amount) {
+    return 850 * amount + Math.max(0, this.lives - 1) * 180 * amount + (amount - 1) * 450;
+  }
+
+  makeUpgradePool() {
+    const speed = 132 + this.speedLevel * 12;
+    const canUpgradeBomb = (amount) => this.bombLimit + amount <= POWER_MAX.bombLimit;
+    const canUpgradeFire = (amount) => this.blastRadius + amount <= POWER_MAX.blastRadius;
+    const canUpgradeSpeed = (amount) => this.speedLevel + amount <= POWER_MAX.speedLevel;
+    const pool = [
+      {
+        id: "bomb1",
+        rarity: "common",
+        title: "BOMB +1",
+        detail: `同時設置 ${this.bombLimit} > ${this.bombLimit + 1}`,
+        level: this.bombLevel,
+        cost: this.upgradeMultiCost("bomb", 1),
+        available: canUpgradeBomb(1),
+        apply: () => { this.bombLevel += 1; },
+      },
+      {
+        id: "fire1",
+        rarity: "common",
+        title: "FIRE +1",
+        detail: `爆風距離 ${this.blastRadius} > ${this.blastRadius + 1}`,
+        level: this.fireLevel,
+        cost: this.upgradeMultiCost("fire", 1),
+        available: canUpgradeFire(1),
+        apply: () => { this.fireLevel += 1; },
+      },
+      {
+        id: "speed1",
+        rarity: "common",
+        title: "SPEED +1",
+        detail: `移動速度 ${speed} > ${speed + 12}`,
+        level: this.speedLevel,
+        cost: this.upgradeMultiCost("speed", 1),
+        available: canUpgradeSpeed(1),
+        apply: () => { this.speedLevel += 1; },
+      },
+      {
+        id: "life1",
+        rarity: "common",
+        title: "LIFE +1",
+        detail: `残機 ${this.lives} > ${this.lives + 1}`,
+        level: this.lives,
+        cost: this.lifeUpgradeCost(1),
+        apply: () => { this.lives += 1; },
+      },
+      {
+        id: "bomb2",
+        rarity: "rare",
+        title: "BOMB +2",
+        detail: `同時設置 ${this.bombLimit} > ${this.bombLimit + 2}`,
+        level: this.bombLevel,
+        cost: this.upgradeMultiCost("bomb", 2, 500),
+        available: canUpgradeBomb(2),
+        apply: () => { this.bombLevel += 2; },
+      },
+      {
+        id: "fire2",
+        rarity: "rare",
+        title: "FIRE +2",
+        detail: `爆風距離 ${this.blastRadius} > ${this.blastRadius + 2}`,
+        level: this.fireLevel,
+        cost: this.upgradeMultiCost("fire", 2, 500),
+        available: canUpgradeFire(2),
+        apply: () => { this.fireLevel += 2; },
+      },
+      {
+        id: "speed2",
+        rarity: "rare",
+        title: "SPEED +2",
+        detail: `移動速度 ${speed} > ${speed + 24}`,
+        level: this.speedLevel,
+        cost: this.upgradeMultiCost("speed", 2, 500),
+        available: canUpgradeSpeed(2),
+        apply: () => { this.speedLevel += 2; },
+      },
+      {
+        id: "life2",
+        rarity: "rare",
+        title: "LIFE +2",
+        detail: `残機 ${this.lives} > ${this.lives + 2}`,
+        level: this.lives,
+        cost: this.lifeUpgradeCost(2),
+        apply: () => { this.lives += 2; },
+      },
+      {
+        id: "bomb3",
+        rarity: "epic",
+        title: "BOMB +3",
+        detail: `同時設置 ${this.bombLimit} > ${this.bombLimit + 3}`,
+        level: this.bombLevel,
+        cost: this.upgradeMultiCost("bomb", 3, 1500),
+        available: canUpgradeBomb(3),
+        apply: () => { this.bombLevel += 3; },
+      },
+      {
+        id: "fire3",
+        rarity: "epic",
+        title: "FIRE +3",
+        detail: `爆風距離 ${this.blastRadius} > ${this.blastRadius + 3}`,
+        level: this.fireLevel,
+        cost: this.upgradeMultiCost("fire", 3, 1500),
+        available: canUpgradeFire(3),
+        apply: () => { this.fireLevel += 3; },
+      },
+      {
+        id: "speed3",
+        rarity: "epic",
+        title: "SPEED +3",
+        detail: `移動速度 ${speed} > ${speed + 36}`,
+        level: this.speedLevel,
+        cost: this.upgradeMultiCost("speed", 3, 1500),
+        available: canUpgradeSpeed(3),
+        apply: () => { this.speedLevel += 3; },
+      },
+      {
+        id: "punch",
+        rarity: "epic",
+        title: "PUNCH",
+        detail: "歩いて爆弾を1マス押せる",
+        level: this.punch ? "OWNED" : 0,
+        cost: SINGLE_UPGRADE_COST.punch,
+        owned: this.punch,
+        apply: () => { this.punch = true; },
+      },
+      {
+        id: "glove",
+        rarity: "epic",
+        title: "GLOVE",
+        detail: "Eで隣の爆弾を3マス投げる",
+        level: this.glove ? "OWNED" : 0,
+        cost: SINGLE_UPGRADE_COST.glove,
+        owned: this.glove,
+        apply: () => { this.glove = true; },
+      },
+      {
+        id: "wallPass",
+        rarity: "epic",
+        title: "WALL PASS",
+        detail: "通常の壊せる壁を通過",
+        level: this.wallPass ? "OWNED" : 0,
+        cost: SINGLE_UPGRADE_COST.wallPass,
+        owned: this.wallPass,
+        apply: () => { this.wallPass = true; },
+      },
+      {
+        id: "pierceBomb",
+        rarity: "epic",
+        title: "PIERCE BOMB",
+        detail: "爆風が壊せる壁を貫通",
+        level: this.pierceBomb ? "OWNED" : 0,
+        cost: SINGLE_UPGRADE_COST.pierceBomb,
+        owned: this.pierceBomb,
+        apply: () => { this.pierceBomb = true; },
+      },
+      {
+        id: "remoteBomb",
+        rarity: "epic",
+        title: "REMOTE",
+        detail: "爆弾がEで任意起爆になる",
+        level: this.remoteBomb ? "OWNED" : 0,
+        cost: SINGLE_UPGRADE_COST.remoteBomb,
+        owned: this.remoteBomb,
+        apply: () => { this.remoteBomb = true; },
+      },
+      {
+        id: "heart",
+        rarity: "rare",
+        title: "HEART",
+        detail: `被弾無効 ${this.heartCharges} > ${this.heartCharges + 1}`,
+        level: this.heartCharges,
+        cost: 1600 + this.heartCharges * 500,
+        apply: () => { this.heartCharges += 1; },
+      },
+      {
+        id: "life3",
+        rarity: "epic",
+        title: "LIFE +3",
+        detail: `残機 ${this.lives} > ${this.lives + 3}`,
+        level: this.lives,
+        cost: this.lifeUpgradeCost(3),
+        apply: () => { this.lives += 3; },
+      },
+    ];
+    return pool.filter((item) => !item.owned && item.available !== false);
+  }
+
+  rollUpgradeRarity() {
+    const roll = Math.random();
+    if (roll < 0.05) return "epic";
+    if (roll < 0.3) return "rare";
+    return "common";
+  }
+
+  generateShopItems() {
+    const pool = this.makeUpgradePool();
+    const selected = [];
+    for (let slot = 0; slot < 3; slot += 1) {
+      const rarity = this.rollUpgradeRarity();
+      let choices = pool.filter(
+        (item) => item.rarity === rarity && !selected.some((selectedItem) => selectedItem.id === item.id),
+      );
+      if (choices.length === 0) {
+        choices = pool.filter(
+          (item) => item.rarity === "common" && !selected.some((selectedItem) => selectedItem.id === item.id),
+        );
+      }
+      if (choices.length === 0) {
+        choices = pool.filter((item) => !selected.some((selectedItem) => selectedItem.id === item.id));
+      }
+      if (choices.length === 0) break;
+      selected.push(choices[Math.floor(Math.random() * choices.length)]);
+    }
+    return selected;
   }
 
   showUpgradeShop() {
@@ -1595,33 +2239,7 @@ class BlastGame extends Phaser.Scene {
       this.overlay.destroy();
     }
     this.overlayMode = "shop";
-
-    const items = [
-      {
-        type: "bomb",
-        key: "1",
-        title: "BOMB +1",
-        detail: `同時設置 ${this.bombLimit} > ${this.bombLimit + 1}`,
-        level: this.bombLevel,
-        color: 0x35d9ff,
-      },
-      {
-        type: "fire",
-        key: "2",
-        title: "FIRE +1",
-        detail: `爆風距離 ${this.blastRadius} > ${this.blastRadius + 1}`,
-        level: this.fireLevel,
-        color: 0xff9b3d,
-      },
-      {
-        type: "speed",
-        key: "3",
-        title: "SPEED +1",
-        detail: `移動速度 ${132 + this.speedLevel * 12} > ${144 + this.speedLevel * 12}`,
-        level: this.speedLevel,
-        color: 0xa879ff,
-      },
-    ];
+    this.shopItems = this.generateShopItems();
 
     const shade = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x07101f, 0.94);
     const title = this.add
@@ -1644,24 +2262,31 @@ class BlastGame extends Phaser.Scene {
       .setOrigin(0.5);
     const children = [shade, title, score, status];
 
-    items.forEach((item, index) => {
+    this.shopItems.forEach((item, index) => {
       const x = 120 + index * 210;
-      const cost = this.upgradeCost(item.type);
+      const cost = item.cost;
       const affordable = this.score >= cost;
+      const rarity = UPGRADE_RARITIES[item.rarity];
       const card = this.add
         .rectangle(x, 315, 182, 230, 0x17213b, 1)
-        .setStrokeStyle(3, affordable ? item.color : 0x506080)
+        .setStrokeStyle(3, affordable ? rarity.color : 0x506080)
         .setInteractive({ useHandCursor: true });
       const keyLabel = this.add
-        .text(x - 70, 218, item.key, {
+        .text(x - 70, 218, String(index + 1), {
           ...this.hudStyle(16),
           color: affordable ? "#ffffff" : "#687895",
+        })
+        .setOrigin(0.5);
+      const rarityLabel = this.add
+        .text(x, 226, rarity.label, {
+          ...this.hudStyle(11),
+          color: affordable ? `#${rarity.color.toString(16).padStart(6, "0")}` : "#687895",
         })
         .setOrigin(0.5);
       const itemTitle = this.add
         .text(x, 265, item.title, {
           ...this.hudStyle(22),
-          color: affordable ? `#${item.color.toString(16).padStart(6, "0")}` : "#687895",
+          color: affordable ? `#${rarity.color.toString(16).padStart(6, "0")}` : "#687895",
           align: "center",
         })
         .setOrigin(0.5);
@@ -1685,12 +2310,12 @@ class BlastGame extends Phaser.Scene {
         })
         .setOrigin(0.5);
 
-      card.on("pointerdown", () => this.buyUpgrade(item.type));
+      card.on("pointerdown", () => this.buyUpgrade(index));
       card.on("pointerover", () => {
         if (affordable) card.setFillStyle(0x263759);
       });
       card.on("pointerout", () => card.setFillStyle(0x17213b));
-      children.push(card, keyLabel, itemTitle, detail, level, price);
+      children.push(card, keyLabel, rarityLabel, itemTitle, detail, level, price);
     });
 
     const skip = this.add
@@ -1706,18 +2331,18 @@ class BlastGame extends Phaser.Scene {
     this.overlay = this.add.container(0, 0, children).setDepth(50);
   }
 
-  buyUpgrade(type) {
+  buyUpgrade(slot) {
     if (this.overlayMode !== "shop") return;
-    const cost = this.upgradeCost(type);
+    const item = this.shopItems?.[slot];
+    if (!item) return;
+    const cost = item.cost;
     if (this.score < cost) {
       this.shopStatusText?.setText("SCORE が足りません").setColor("#ff4d6d");
       return;
     }
 
     this.score -= cost;
-    if (type === "bomb") this.bombLevel += 1;
-    if (type === "fire") this.fireLevel += 1;
-    if (type === "speed") this.speedLevel += 1;
+    item.apply();
     this.advanceToNextStage();
   }
 
@@ -1726,44 +2351,236 @@ class BlastGame extends Phaser.Scene {
     this.nextStageAt = 0;
     this.scene.restart({
       stageIndex: this.stageIndex + 1,
-      lives: this.lives,
-      score: this.score,
-      bombLevel: this.bombLevel,
-      fireLevel: this.fireLevel,
-      speedLevel: this.speedLevel,
+      ...this.currentRunState(),
       showIntro: false,
       startImmediately: false,
     });
   }
 
-  handleDebugStageJump(event) {
-    if (!event.shiftKey) return;
-    const stageKeys = {
-      Digit1: 0,
-      Digit2: 1,
-      Digit3: 2,
-      Digit4: 3,
-      Digit5: 4,
-      Digit6: 5,
-      Digit7: 6,
-      Digit8: 7,
-      Digit9: 8,
-      Digit0: 9,
+  currentRunState() {
+    return {
+      lives: this.lives,
+      score: this.score,
+      bombLevel: this.bombLevel,
+      fireLevel: this.fireLevel,
+      speedLevel: this.speedLevel,
+      punch: this.punch,
+      glove: this.glove,
+      wallPass: this.wallPass,
+      pierceBomb: this.pierceBomb,
+      remoteBomb: this.remoteBomb,
+      heartCharges: this.heartCharges,
     };
-    const stageIndex = stageKeys[event.code];
-    if (stageIndex === undefined) return;
+  }
+
+  handleDebugConsoleKey(event) {
+    if (!event.shiftKey || !event.altKey || !event.ctrlKey || event.repeat) return;
     event.preventDefault();
+    this.toggleDebugConsole();
+  }
+
+  toggleDebugConsole() {
+    if (this.overlayMode === "debug") {
+      this.closeDebugConsole();
+      return;
+    }
+    if (this.overlayMode) return;
+    this.showDebugConsole();
+  }
+
+  showDebugConsole() {
+    this.debugWasActive = this.gameActive;
+    this.debugWasPaused = this.physics.world.isPaused || this.isPaused;
+    this.overlayMode = "debug";
+    this.gameActive = false;
+    this.physics.world.isPaused = true;
+    setStageMusicActive(false);
+    this.debugStageIndex = this.stageIndex;
+
+    const shade = this.add
+      .rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x07101f, 0.94)
+      .setInteractive();
+    const title = this.add
+      .text(WIDTH / 2, 42, "DEBUG CONSOLE", {
+        ...this.hudStyle(24),
+        color: "#ffb341",
+      })
+      .setOrigin(0.5);
+    const help = this.add
+      .text(WIDTH / 2, 72, "クリックで調整 / APPLY STAGEで指定ステージへ移動 / CLOSEで再開", {
+        ...this.hudStyle(11),
+        color: "#8fa4c7",
+      })
+      .setOrigin(0.5);
+    this.debugRows = [];
+    this.debugContainer = this.add.container(0, 0, [shade, title, help]).setDepth(80);
+    this.renderDebugConsole();
+  }
+
+  renderDebugConsole() {
+    this.debugRows.forEach((object) => object.destroy());
+    this.debugRows = [];
+    const add = (object) => {
+      this.debugRows.push(object);
+      this.debugContainer.add(object);
+      return object;
+    };
+    const button = (x, y, label, onClick, color = "#eff6ff") =>
+      add(
+        this.add
+          .text(x, y, label, {
+            ...this.hudStyle(13),
+            color,
+            backgroundColor: "#17213b",
+            padding: { x: 8, y: 5 },
+          })
+          .setOrigin(0.5)
+          .setInteractive({ useHandCursor: true })
+          .on("pointerdown", onClick),
+      );
+    const valueRow = (y, label, value, minus, plus) => {
+      add(
+        this.add
+          .text(125, y, label, {
+            ...this.hudStyle(14),
+            color: "#8fa4c7",
+          })
+          .setOrigin(0, 0.5),
+      );
+      button(330, y, "-", () => {
+        minus();
+        this.refreshDerivedPowerState();
+        this.renderDebugConsole();
+      });
+      add(
+        this.add
+          .text(405, y, String(value), {
+            ...this.hudStyle(15),
+            color: "#ffffff",
+          })
+          .setOrigin(0.5),
+      );
+      button(480, y, "+", () => {
+        plus();
+        this.refreshDerivedPowerState();
+        this.renderDebugConsole();
+      });
+    };
+    const toggleRow = (y, label, prop) => {
+      add(
+        this.add
+          .text(125, y, label, {
+            ...this.hudStyle(14),
+            color: "#8fa4c7",
+          })
+          .setOrigin(0, 0.5),
+      );
+      button(405, y, this[prop] ? "ON" : "OFF", () => {
+        this[prop] = !this[prop];
+        this.refreshDerivedPowerState();
+        this.renderDebugConsole();
+      }, this[prop] ? "#ffb341" : "#687895");
+    };
+
+    valueRow(115, "STAGE", this.debugStageIndex + 1, () => {
+      this.debugStageIndex = Math.max(0, this.debugStageIndex - 1);
+    }, () => {
+      this.debugStageIndex = Math.min(STAGES.length - 1, this.debugStageIndex + 1);
+    });
+    valueRow(155, "SCORE", this.score, () => {
+      this.score = Math.max(0, this.score - 500);
+    }, () => {
+      this.score += 500;
+    });
+    valueRow(195, "LIFE", this.lives, () => {
+      this.lives = Math.max(1, this.lives - 1);
+    }, () => {
+      this.lives += 1;
+    });
+    valueRow(235, "HEART", this.heartCharges, () => {
+      this.heartCharges = Math.max(0, this.heartCharges - 1);
+    }, () => {
+      this.heartCharges += 1;
+    });
+    valueRow(275, "BOMB LIMIT", this.bombLimit, () => {
+      this.bombLevel = Math.max(0, this.bombLevel - 1);
+    }, () => {
+      this.bombLevel = Math.min(POWER_MAX.bombLimit - 1, this.bombLevel + 1);
+    });
+    valueRow(315, "FIRE RANGE", this.blastRadius, () => {
+      this.fireLevel = Math.max(0, this.fireLevel - 1);
+    }, () => {
+      this.fireLevel = Math.min(POWER_MAX.blastRadius - 2, this.fireLevel + 1);
+    });
+    valueRow(355, "SPEED LEVEL", this.speedLevel, () => {
+      this.speedLevel = Math.max(0, this.speedLevel - 1);
+    }, () => {
+      this.speedLevel = Math.min(POWER_MAX.speedLevel, this.speedLevel + 1);
+    });
+
+    toggleRow(405, "PUNCH", "punch");
+    toggleRow(445, "GLOVE", "glove");
+    toggleRow(485, "WALL PASS", "wallPass");
+    toggleRow(525, "PIERCE BOMB", "pierceBomb");
+    toggleRow(565, "REMOTE", "remoteBomb");
+
+    button(165, 615, "APPLY STAGE", () => this.applyDebugStage(), "#35d9ff");
+    button(360, 615, "CLOSE", () => this.closeDebugConsole(), "#ffffff");
+    button(525, 615, "RESET POWER", () => {
+      this.bombLevel = 0;
+      this.fireLevel = 0;
+      this.speedLevel = 0;
+      this.punch = false;
+      this.glove = false;
+      this.wallPass = false;
+      this.pierceBomb = false;
+      this.remoteBomb = false;
+      this.heartCharges = 0;
+      this.refreshDerivedPowerState();
+      this.renderDebugConsole();
+    }, "#ff4d6d");
+
+    this.updateHud();
+  }
+
+  refreshDerivedPowerState() {
+    this.bombLevel = Phaser.Math.Clamp(this.bombLevel, 0, POWER_MAX.bombLimit - 1);
+    this.fireLevel = Phaser.Math.Clamp(this.fireLevel, 0, POWER_MAX.blastRadius - 2);
+    this.speedLevel = Phaser.Math.Clamp(this.speedLevel, 0, POWER_MAX.speedLevel);
+    this.bombLimit = 1 + this.bombLevel;
+    this.blastRadius = 2 + this.fireLevel;
+  }
+
+  closeDebugConsole() {
+    this.debugContainer?.destroy();
+    this.debugContainer = null;
+    this.debugRows = [];
+    this.overlayMode = null;
+    this.refreshDerivedPowerState();
+    this.updateHud();
+    if (this.debugWasActive) {
+      this.gameActive = true;
+      this.physics.world.isPaused = this.debugWasPaused;
+      setStageMusicActive(!this.debugWasPaused);
+    }
+    this.debugWasActive = false;
+    this.debugWasPaused = false;
+  }
+
+  applyDebugStage() {
+    const stageIndex = this.debugStageIndex ?? this.stageIndex;
+    this.debugContainer?.destroy();
+    this.debugContainer = null;
+    this.debugRows = [];
+    this.overlayMode = null;
+    this.refreshDerivedPowerState();
     this.jumpToStage(stageIndex);
   }
 
   jumpToStage(stageIndex) {
     this.scene.restart({
       stageIndex,
-      lives: this.lives,
-      score: this.score,
-      bombLevel: this.bombLevel,
-      fireLevel: this.fireLevel,
-      speedLevel: this.speedLevel,
+      ...this.currentRunState(),
       showIntro: false,
       startImmediately: false,
     });
@@ -1773,11 +2590,7 @@ class BlastGame extends Phaser.Scene {
     if (this.overlayMode === "start" || this.overlayMode === "victory") return;
     this.scene.restart({
       stageIndex: this.stageIndex,
-      lives: this.lives,
-      score: this.score,
-      bombLevel: this.bombLevel,
-      fireLevel: this.fireLevel,
-      speedLevel: this.speedLevel,
+      ...this.currentRunState(),
       showIntro: false,
       startImmediately: false,
     });
@@ -1791,6 +2604,12 @@ class BlastGame extends Phaser.Scene {
       bombLevel: 0,
       fireLevel: 0,
       speedLevel: 0,
+      punch: false,
+      glove: false,
+      wallPass: false,
+      pierceBomb: false,
+      remoteBomb: false,
+      heartCharges: 0,
       showIntro: false,
       startImmediately: false,
     });
@@ -1817,7 +2636,8 @@ class BlastGame extends Phaser.Scene {
     if (!this.stageText) return;
     this.stageText.setText(`STAGE ${String(this.stageIndex + 1).padStart(2, "0")}`);
     this.enemyText.setText(`ENEMY  ${this.enemies?.countActive(true) ?? 0}`);
-    this.infoText.setText(`LIFE ${this.lives}   SCORE ${this.score}`);
+    const heart = this.heartCharges > 0 ? ` H${this.heartCharges}` : "";
+    this.infoText.setText(`LIFE ${this.lives}${heart}   SCORE ${this.score}`);
   }
 }
 
@@ -1861,6 +2681,8 @@ function startDomOpening() {
   overlay.className = "op-overlay";
   overlay.innerHTML = `
     <img class="op-image" alt="" />
+    <button class="op-sound-button" type="button" aria-label="OP BGMを再生">♪</button>
+    <div class="op-start-screen"></div>
     <div class="op-caption"></div>
     <div class="op-prompt" aria-hidden="true">
       <span class="op-press">PRESS</span>
@@ -1871,23 +2693,82 @@ function startDomOpening() {
   container.appendChild(overlay);
 
   const image = overlay.querySelector(".op-image");
+  const startScreen = overlay.querySelector(".op-start-screen");
+  const soundButton = overlay.querySelector(".op-sound-button");
   const caption = overlay.querySelector(".op-caption");
   const error = overlay.querySelector(".op-error");
   let slideIndex = 0;
   let timerId = null;
+  let skipHoldTimerId = null;
+  let openingStarted = false;
   let started = false;
+  const openingBgm = new Audio(OPENING_BGM_SRC);
+  openingBgm.loop = false;
+  openingBgm.volume = 0.58;
+  openingBgm.preload = "auto";
 
-  const cleanupAndStart = () => {
-    if (started || slideIndex < OPENING_SLIDES.length - 1) return;
+  const playOpeningBgm = () => {
+    if (openingBgm.paused) {
+      openingBgm.play().then(
+        () => soundButton?.classList.add("is-playing"),
+        () => soundButton?.classList.remove("is-playing"),
+      );
+    }
+  };
+
+  const stopOpeningBgm = () => {
+    openingBgm.pause();
+    openingBgm.currentTime = 0;
+  };
+
+  const clearSkipHoldTimer = () => {
+    window.clearTimeout(skipHoldTimerId);
+    skipHoldTimerId = null;
+  };
+
+  const startOpeningPlayback = () => {
+    if (openingStarted) return;
+    openingStarted = true;
+    overlay.classList.remove("is-waiting");
+    startScreen?.remove();
+    openingBgm.currentTime = 0;
+    playOpeningBgm();
+    showSlide(0, true);
+  };
+
+  const startGameFromOpening = () => {
+    if (started) return;
     started = true;
     window.clearTimeout(timerId);
+    clearSkipHoldTimer();
     window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("keyup", handleKeyUp);
+    stopOpeningBgm();
     overlay.remove();
     startPhaserGame();
   };
 
+  const cleanupAndStart = () => {
+    if (!openingStarted || slideIndex < OPENING_SLIDES.length - 1) return;
+    startGameFromOpening();
+  };
+
   const handleKeyDown = (event) => {
-    if (event.key === "Enter") cleanupAndStart();
+    if (event.key !== "Enter") return;
+    if (!skipHoldTimerId) {
+      skipHoldTimerId = window.setTimeout(() => {
+        if (!started) startGameFromOpening();
+      }, OPENING_SKIP_HOLD_DURATION);
+    }
+    if (!openingStarted) {
+      startOpeningPlayback();
+    } else {
+      cleanupAndStart();
+    }
+  };
+
+  const handleKeyUp = (event) => {
+    if (event.key === "Enter") clearSkipHoldTimer();
   };
 
   const setSlideImage = (slide, folderIndex = 0) => {
@@ -1905,22 +2786,63 @@ function startDomOpening() {
     image.src = resolveOpeningImageSource(slide.file, folderIndex);
   };
 
-  const showSlide = (index) => {
-    window.clearTimeout(timerId);
-    slideIndex = index;
+  const openingSlideDuration = (index) => {
     const slide = OPENING_SLIDES[index];
-    overlay.classList.toggle("is-final", index === OPENING_SLIDES.length - 1);
-    caption.textContent = slide.caption;
-    setSlideImage(slide);
+    if (slide?.file === "12.png") return OPENING_DESCEND_MOTION_DURATION + OPENING_DESCEND_HOLD_DURATION;
+    return OPENING_SLIDE_DURATIONS[index] ?? OPENING_SLIDE_DURATION;
+  };
 
-    if (index < OPENING_SLIDES.length - 1) {
-      timerId = window.setTimeout(() => showSlide(index + 1), index === 5 ? 1200 : 2400);
+  const applySlideMotion = (index, duration) => {
+    image.style.transition = "none";
+    image.style.opacity = index === 0 ? "0" : "1";
+    image.style.transform = "scale(1)";
+    image.getBoundingClientRect();
+
+    if (index === 0) {
+      image.style.transition = `opacity ${OPENING_FADE_IN_DURATION}ms ease, transform ${duration}ms linear`;
+      image.style.opacity = "1";
+      image.style.transform = "scale(1.08)";
+    } else if (index === 1) {
+      image.style.transition = `transform ${duration}ms linear`;
+      image.style.transform = "scale(1.08)";
+    } else if (OPENING_SLIDES[index]?.file === "12.png") {
+      image.style.transform = "translateY(-50%)";
+      image.getBoundingClientRect();
+      image.style.transition = `transform ${OPENING_DESCEND_MOTION_DURATION}ms linear`;
+      image.style.transform = "translateY(0)";
     }
   };
 
+  const showSlide = (index, scheduleNext = openingStarted) => {
+    window.clearTimeout(timerId);
+    slideIndex = index;
+    const slide = OPENING_SLIDES[index];
+    const duration = openingSlideDuration(index);
+    overlay.classList.toggle("is-final", index === OPENING_SLIDES.length - 1);
+    caption.textContent = slide.caption ?? "";
+    setSlideImage(slide);
+    applySlideMotion(index, duration);
+
+    if (scheduleNext && index < OPENING_SLIDES.length - 1) {
+      timerId = window.setTimeout(() => showSlide(index + 1), duration);
+    }
+  };
+
+  overlay.classList.add("is-waiting");
   window.addEventListener("keydown", handleKeyDown);
-  overlay.addEventListener("pointerdown", cleanupAndStart);
-  showSlide(0);
+  window.addEventListener("keyup", handleKeyUp);
+  soundButton?.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    startOpeningPlayback();
+  });
+  overlay.addEventListener("pointerdown", () => {
+    if (!openingStarted) {
+      startOpeningPlayback();
+    } else {
+      cleanupAndStart();
+    }
+  });
+  showSlide(0, false);
 }
 
 startDomOpening();

@@ -134,38 +134,52 @@ kbd {
   position: absolute;
   top: 0;
   right: 0;
-  bottom: 92px;
+  bottom: 0;
   left: 0;
   width: 100%;
-  height: calc(100% - 92px);
+  height: 100%;
   object-fit: contain;
   opacity: 1;
-  transition:
-    opacity 0.26s ease,
-    scale 2.4s ease,
-    translate 2.4s ease;
-  scale: 1;
+  transform: scale(1);
+  transform-origin: center center;
 }
 
 .op-image.is-loading {
   opacity: 0.35;
 }
 
-.op-caption {
+.op-start-screen {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  min-height: 92px;
+  inset: 0;
+  z-index: 3;
+  background: #050914;
+}
+
+.op-sound-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 4;
   display: grid;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  padding: 18px 28px;
-  border-top: 3px solid rgba(53, 217, 255, 0.52);
-  background: rgba(3, 7, 18, 0.76);
-  color: white;
-  font: 900 25px "Trebuchet MS", "Yu Gothic", "Meiryo", sans-serif;
-  text-align: center;
-  text-shadow: 0 3px 0 #030712, 0 0 16px rgba(0, 0, 0, 0.8);
+  border: 2px solid rgba(53, 217, 255, 0.68);
+  border-radius: 50%;
+  background: rgba(3, 7, 18, 0.72);
+  color: #35d9ff;
+  font: 900 24px "Trebuchet MS", sans-serif;
+  text-shadow: 0 2px 0 #030712;
+  cursor: pointer;
+}
+
+.op-sound-button.is-playing {
+  border-color: rgba(255, 207, 74, 0.82);
+  color: #ffcf4a;
+}
+
+.op-caption {
+  display: none;
 }
 
 .op-prompt {
@@ -173,6 +187,7 @@ kbd {
   right: 0;
   bottom: 118px;
   left: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,10 +211,13 @@ kbd {
   transform: translateX(420px);
 }
 
+.op-overlay.is-waiting .op-prompt,
 .op-overlay.is-final .op-prompt {
   opacity: 1;
 }
 
+.op-overlay.is-waiting .op-press,
+.op-overlay.is-waiting .op-enter,
 .op-overlay.is-final .op-press,
 .op-overlay.is-final .op-enter {
   animation:
