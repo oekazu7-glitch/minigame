@@ -26,9 +26,18 @@ const OPENING_SLIDE_DURATION = 4800;
 const OPENING_SLIDE_DURATIONS = [7000, 7000];
 const OPENING_DESCEND_MOTION_DURATION = 7500;
 const OPENING_DESCEND_HOLD_DURATION = 10000;
+const OPENING_DESCEND_BLACKOUT_DURATION = 3000;
 const OPENING_FADE_IN_DURATION = 1500;
 const OPENING_SKIP_HOLD_DURATION = 900;
-const STAGE_BGM_SRC = "BGM/STAGE BGM/STAGE BGM_001.mp3";
+const TITLE_BGM_SRC = "BGM/Title BGM.mp3";
+const STAGE_START_BGM_SRC = "BGM/Stage Start.mp3";
+const AREA_BGM_SRCS = [
+  "BGM/Area BGM/Area01.mp3",
+  "BGM/Area BGM/Area02.mp3",
+  "BGM/Area BGM/Area03.mp3",
+  "BGM/Area BGM/Area04.mp3",
+  "BGM/Area BGM/Area05.mp3",
+];
 const EXPLOSION_SOUND_SRC = "BGM/効果音/Explosion.mp3";
 const BOMB_FUSE_DURATION = 3000;
 const ENEMY_BOMB_FUSE_DURATION = 1500;
@@ -45,8 +54,11 @@ const audioState = {
   context: null,
   musicGain: null,
   stageAudio: null,
+  stageAudioSrc: null,
+  stageStartAudio: null,
   explosionAudio: null,
   stageIndex: 0,
+  stageMusicToken: 0,
   active: false,
 };
 
@@ -81,29 +93,74 @@ function playTone(context, destination, frequency, duration, volume, type = "squ
 function startStageMusic(stageIndex) {
   audioState.stageIndex = stageIndex;
   audioState.active = true;
-  const audio = stageBgmAudio();
-  audio.currentTime = 0;
-  audio.play().catch(() => {});
+  audioState.stageMusicToken += 1;
+  const token = audioState.stageMusicToken;
+  const startAudio = stageStartAudio();
+  const bgmAudio = stageBgmAudio(stageIndex);
+  startAudio.pause();
+  bgmAudio.pause();
+  startAudio.currentTime = 0;
+  bgmAudio.currentTime = 0;
+
+  startAudio.onended = () => {
+    if (!audioState.active || token !== audioState.stageMusicToken) return;
+    bgmAudio.currentTime = 0;
+    bgmAudio.play().catch(() => {});
+  };
+  startAudio.play().catch(() => {
+    if (!audioState.active || token !== audioState.stageMusicToken) return;
+    bgmAudio.play().catch(() => {});
+  });
+}
+
+function resumeStageAreaMusic(stageIndex = audioState.stageIndex) {
+  audioState.stageIndex = stageIndex;
+  audioState.active = true;
+  const startAudio = audioState.stageStartAudio;
+  const bgmAudio = stageBgmAudio(stageIndex);
+  if (startAudio && !startAudio.ended && startAudio.currentTime > 0) {
+    startAudio.play().catch(() => {});
+    return;
+  }
+  bgmAudio.play().catch(() => {});
 }
 
 function setStageMusicActive(active) {
   audioState.active = active;
-  const audio = audioState.stageAudio;
-  if (!audio) return;
+  const stageStart = audioState.stageStartAudio;
+  const stageAudio = audioState.stageAudio;
   if (active) {
-    audio.play().catch(() => {});
+    if (stageStart && !stageStart.ended && stageStart.currentTime > 0) {
+      stageStart.play().catch(() => {});
+    } else if (stageAudio) {
+      stageAudio.play().catch(() => {});
+    }
   } else {
-    audio.pause();
+    stageStart?.pause();
+    stageAudio?.pause();
   }
 }
 
-function stageBgmAudio() {
-  if (audioState.stageAudio) return audioState.stageAudio;
-  const audio = new Audio(STAGE_BGM_SRC);
+function stageStartAudio() {
+  if (audioState.stageStartAudio) return audioState.stageStartAudio;
+  const audio = new Audio(STAGE_START_BGM_SRC);
+  audio.loop = false;
+  audio.volume = 0.7;
+  audio.preload = "auto";
+  audioState.stageStartAudio = audio;
+  return audio;
+}
+
+function stageBgmAudio(stageIndex = audioState.stageIndex) {
+  const src = AREA_BGM_SRCS[Math.min(AREA_BGM_SRCS.length - 1, Math.floor(stageIndex / 4))];
+  if (audioState.stageAudio && audioState.stageAudioSrc === src) return audioState.stageAudio;
+  audioState.stageAudio?.pause();
+  const audio = new Audio(src);
   audio.loop = true;
   audio.volume = 0.5;
   audio.preload = "auto";
   audioState.stageAudio = audio;
+  audioState.stageAudioSrc = src;
   return audio;
 }
 
@@ -130,7 +187,11 @@ const ENEMY_TYPES = [
   "bakudaso",
   "kedama",
   "tepodon",
+  "jksoldier",
 ];
+
+const JK_SOLDIER_DISPLAY = { width: 43, height: 58 };
+const JK_SOLDIER_BODY = { width: 28, height: 36, offsetX: 34, offsetY: 76 };
 
 const AREAS = [
   { id: "standard", name: "STANDARD", floor: 0x15284b, floor2: 0x192f57, line: 0x24416d, solid: 0x3e5d8c, solid2: 0x5879a8, brick: 0xc16b3e, brickDark: 0x6c3428 },
@@ -149,7 +210,7 @@ const STAGES = [
   { name: "TIDE HUNTER", walls: 0.55, enemies: [1, 2, 1, 1, 1, 0, 0, 0], speed: 87, fuse: 1600 },
   { name: "ROCKET SHORE", walls: 0.56, enemies: [0, 0, 0, 0, 0, 0, 0, 3], speed: 90, fuse: 1560 },
   { name: "COAST STORM", walls: 0.57, enemies: [1, 2, 1, 2, 1, 1, 0, 0], speed: 93, fuse: 1520 },
-  { name: "HOUSE BLOCK", walls: 0.58, enemies: [1, 2, 2, 1, 1, 1, 0, 0], speed: 96, fuse: 1480 },
+  { name: "HOUSE BLOCK", walls: 0.58, enemies: [1, 2, 2, 1, 1, 1, 0, 0, 1], speed: 96, fuse: 1480 },
   { name: "TOWER FUSE", walls: 0.59, enemies: [1, 1, 2, 2, 1, 1, 1, 0], speed: 99, fuse: 1440 },
   { name: "SKYLINE BLAST", walls: 0.60, enemies: [1, 2, 2, 1, 2, 1, 1, 1], speed: 102, fuse: 1400 },
   { name: "STEEL CORE", walls: 0.61, enemies: [1, 2, 2, 2, 1, 2, 1, 1], speed: 105, fuse: 1360 },
@@ -224,12 +285,23 @@ class BlastGame extends Phaser.Scene {
     this.bootStartImmediately = data.startImmediately ?? false;
   }
 
+  preload() {
+    const jkSoldierSource =
+      window.JK_SOLDIER_SPRITESHEET_SRC || "assets/enemies/jksoldier-walk.png";
+    this.load.spritesheet("enemy-jksoldier", jkSoldierSource, {
+      frameWidth: 96,
+      frameHeight: 128,
+    });
+  }
+
   create() {
     document.querySelector("#loading-message")?.remove();
     this.createTextures();
+    this.createSpriteAnimations();
     this.createInput();
     this.createHud();
     this.startStage(this.stageIndex, this.bootShowIntro, this.bootStartImmediately);
+    this.createJkSoldierAnimationPreview();
   }
 
   createTextures() {
@@ -520,6 +592,64 @@ class BlastGame extends Phaser.Scene {
     });
   }
 
+  createSpriteAnimations() {
+    if (!this.textures.exists("enemy-jksoldier") || this.anims.exists("jksoldier-down")) {
+      return;
+    }
+    const makeWalk = (key, row) => {
+      const first = row * 5;
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers("enemy-jksoldier", {
+          frames: [first, first + 1, first + 2, first + 3, first + 4],
+        }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    };
+    makeWalk("jksoldier-down", 0);
+    makeWalk("jksoldier-up", 1);
+    makeWalk("jksoldier-left", 2);
+    makeWalk("jksoldier-right", 3);
+  }
+
+  createJkSoldierAnimationPreview() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("jkPreview") || !this.textures.exists("enemy-jksoldier")) return;
+
+    const states = [
+      { key: "jksoldier-down", x: WIDTH / 2, y: HUD_HEIGHT + TILE * 3.2 },
+      { key: "jksoldier-left", x: WIDTH / 2 - TILE * 1.5, y: HUD_HEIGHT + TILE * 3.2 },
+      { key: "jksoldier-up", x: WIDTH / 2, y: HUD_HEIGHT + TILE * 2.2 },
+      { key: "jksoldier-right", x: WIDTH / 2 + TILE * 1.5, y: HUD_HEIGHT + TILE * 3.2 },
+    ];
+    let index = 0;
+
+    this.jkPreviewSprite = this.add
+      .sprite(states[0].x, states[0].y, "enemy-jksoldier")
+      .setDisplaySize(JK_SOLDIER_DISPLAY.width, JK_SOLDIER_DISPLAY.height)
+      .setDepth(70);
+    this.jkPreviewLabel = this.add
+      .text(WIDTH / 2, HUD_HEIGHT + 18, "JKsoldier animation preview", this.hudStyle(14))
+      .setOrigin(0.5)
+      .setDepth(70);
+
+    const applyState = () => {
+      const state = states[index];
+      this.jkPreviewSprite.setPosition(state.x, state.y);
+      if (this.anims.exists(state.key)) this.jkPreviewSprite.play(state.key, true);
+    };
+    applyState();
+    this.time.addEvent({
+      delay: 900,
+      loop: true,
+      callback: () => {
+        index = (index + 1) % states.length;
+        applyState();
+      },
+    });
+  }
+
   createInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,R,P,E,ENTER");
@@ -617,6 +747,7 @@ class BlastGame extends Phaser.Scene {
     this.lastBombAt = 0;
     this.lastBombPunchAt = 0;
     this.playerFacing = { x: 1, y: 0 };
+    this.playerTurnIntent = null;
     this.clearStageObjects();
     this.buildStage();
     this.updateHud();
@@ -648,6 +779,8 @@ class BlastGame extends Phaser.Scene {
       "enemies",
       "exitSprite",
       "player",
+      "jkPreviewSprite",
+      "jkPreviewLabel",
     ];
     names.forEach((name) => {
       const object = this[name];
@@ -793,30 +926,29 @@ class BlastGame extends Phaser.Scene {
     this.stageConfig.enemies.forEach((count, typeIndex) => {
       const type = ENEMY_TYPES[typeIndex];
       for (let i = 0; i < count && cells.length > 0; i += 1) {
-        const candidateIndex = cells.findIndex(
-          ({ col, row }) =>
-            this.availableEnemyDirections({ enemyType: type }, col, row).length > 0,
-        );
+        const candidateIndex = this.findEnemySpawnCellIndex(cells, type);
         if (candidateIndex < 0) break;
         const [cell] = cells.splice(candidateIndex, 1);
         const enemy = this.enemies.create(
           cell.col * TILE + TILE / 2,
           HUD_HEIGHT + cell.row * TILE + TILE / 2,
-          `enemy-${type}`,
+          type === "jksoldier" ? "enemy-jksoldier" : `enemy-${type}`,
         );
         enemy.enemyId = this.nextEnemyId;
         this.nextEnemyId += 1;
         enemy.enemyType = type;
         enemy.maxHealth = type === "pakunman" || type === "chevalier" ? 2 : 1;
         enemy.health = enemy.maxHealth;
-        enemy.moveSpeed = this.stageConfig.speed + Math.min(typeIndex, 3) * 7;
+        enemy.moveSpeed = type === "jksoldier"
+          ? Math.max(72, this.stageConfig.speed + 10)
+          : this.stageConfig.speed + Math.min(typeIndex, 3) * 7;
         enemy.baseMoveSpeed = enemy.moveSpeed;
         enemy.moveDirection = { x: 0, y: 0 };
         enemy.lastCenterKey = cellKey(cell.col, cell.row);
         enemy.lastMoveX = enemy.x;
         enemy.lastMoveY = enemy.y;
         enemy.stuckSince = this.time.now;
-        enemy.pakunmanTurnsUntilChange = type === "pakunman" ? 2 + Math.floor(this.random() * 2) : 0;
+        enemy.pakunmanTurnsUntilChange = type === "pakunman" || type === "jksoldier" ? 2 + Math.floor(this.random() * 2) : 0;
         enemy.pakunmanBaseScale = 1;
         enemy.pendingTurn = false;
         enemy.nextRetryAt = 0;
@@ -830,7 +962,13 @@ class BlastGame extends Phaser.Scene {
         enemy.tepodonMode = null;
         enemy.tepodonTurned = false;
         enemy.tepodonExploding = false;
-        enemy.body.setCircle(12, 10, 11);
+        if (type === "jksoldier") {
+          enemy.setDisplaySize(JK_SOLDIER_DISPLAY.width, JK_SOLDIER_DISPLAY.height);
+          enemy.body.setSize(JK_SOLDIER_BODY.width, JK_SOLDIER_BODY.height, false);
+          enemy.body.setOffset(JK_SOLDIER_BODY.offsetX, JK_SOLDIER_BODY.offsetY);
+        } else {
+          enemy.body.setCircle(12, 10, 11);
+        }
         enemy.setDepth(type === "ghost" ? 4 : 5);
         if (type === "ghost") enemy.setAlpha(0.82);
         this.chooseEnemyDirection(enemy, cell.col, cell.row);
@@ -838,11 +976,28 @@ class BlastGame extends Phaser.Scene {
     });
   }
 
+  findEnemySpawnCellIndex(cells, type) {
+    const candidates = cells
+      .map((cell, index) => ({ ...cell, index }))
+      .filter(
+        ({ col, row }) =>
+          this.availableEnemyDirections({ enemyType: type }, col, row).length > 0,
+      );
+    if (candidates.length === 0) return -1;
+    if (type !== "jksoldier") return candidates[0].index;
+    return candidates.sort(
+        (a, b) =>
+          Math.abs(a.col - COLS / 2) + Math.abs(a.row - ROWS / 2) -
+          (Math.abs(b.col - COLS / 2) + Math.abs(b.row - ROWS / 2)),
+      )[0].index;
+  }
+
   showStageCard() {
     this.gameActive = false;
     this.physics.world.isPaused = true;
     const title = `STAGE ${String(this.stageIndex + 1).padStart(2, "0")}`;
     this.showOverlay(title, `${this.areaForStage().name}\n${this.stageConfig.name}`, "READY", "stage");
+    startStageMusic(this.stageIndex);
     this.time.delayedCall(1350, () => this.dismissOverlay());
   }
 
@@ -894,7 +1049,7 @@ class BlastGame extends Phaser.Scene {
     this.overlayMode = null;
     this.physics.world.isPaused = false;
     this.gameActive = true;
-    startStageMusic(this.stageIndex);
+    resumeStageAreaMusic(this.stageIndex);
   }
 
   update(time, delta) {
@@ -934,6 +1089,17 @@ class BlastGame extends Phaser.Scene {
     else if (right) vx = speed;
     if (up) vy = -speed;
     else if (down) vy = speed;
+    if (vx === 0 && vy === 0) {
+      this.playerTurnIntent = null;
+      this.player.setVelocity(0, 0);
+      return;
+    }
+    this.updatePlayerTurnIntent(vx, vy);
+    const turn = this.consumePlayerTurnIntent(vx, vy, speed);
+    if (turn) {
+      vx = turn.vx;
+      vy = turn.vy;
+    }
     if (vx && vy) {
       vx *= 0.707;
       vy *= 0.707;
@@ -964,6 +1130,54 @@ class BlastGame extends Phaser.Scene {
     }
     this.player.setVelocity(vx, vy);
     if (vx !== 0) this.player.setFlipX(vx < 0);
+  }
+
+  updatePlayerTurnIntent(vx, vy) {
+    if (vx === 0 && vy === 0) return;
+    const axis =
+      Math.abs(vx) > Math.abs(vy)
+        ? { x: Math.sign(vx), y: 0 }
+        : { x: 0, y: Math.sign(vy) };
+    this.playerTurnIntent = {
+      ...axis,
+      until: this.time.now + 180,
+    };
+  }
+
+  consumePlayerTurnIntent(vx, vy, speed) {
+    const intent = this.playerTurnIntent;
+    if (!intent || this.time.now > intent.until) return null;
+
+    const col = Phaser.Math.Clamp(
+      Math.round((this.player.x - TILE / 2) / TILE),
+      1,
+      COLS - 2,
+    );
+    const row = Phaser.Math.Clamp(
+      Math.round((this.player.y - HUD_HEIGHT - TILE / 2) / TILE),
+      1,
+      ROWS - 2,
+    );
+    const centerX = col * TILE + TILE / 2;
+    const centerY = HUD_HEIGHT + row * TILE + TILE / 2;
+    const offsetX = centerX - this.player.x;
+    const offsetY = centerY - this.player.y;
+    const nextKey = cellKey(col + intent.x, row + intent.y);
+    const blocked =
+      this.solidCells.has(nextKey) ||
+      (this.breakableByCell.has(nextKey) && (!this.wallPass || this.breakableByCell.get(nextKey)?.burning)) ||
+      this.bombByCell.get(nextKey)?.ownerClear;
+    if (blocked) return null;
+
+    if (intent.x !== 0 && Math.abs(offsetY) <= 8) {
+      this.player.y = centerY;
+      return { vx: intent.x * speed, vy: 0 };
+    }
+    if (intent.y !== 0 && Math.abs(offsetX) <= 8) {
+      this.player.x = centerX;
+      return { vx: 0, vy: intent.y * speed };
+    }
+    return null;
   }
 
   updateEnemies(time, delta) {
@@ -1133,7 +1347,7 @@ class BlastGame extends Phaser.Scene {
           bestDistance,
       );
       direction = bestChoices[Math.floor(this.random() * bestChoices.length)];
-    } else if (enemy.enemyType === "pakunman" && canContinueForward && !forceTurn) {
+    } else if ((enemy.enemyType === "pakunman" || enemy.enemyType === "jksoldier") && canContinueForward && !forceTurn) {
       enemy.pakunmanTurnsUntilChange = Math.max(0, (enemy.pakunmanTurnsUntilChange ?? 2) - 1);
       if (enemy.pakunmanTurnsUntilChange > 0) {
         direction = enemy.moveDirection;
@@ -1155,6 +1369,16 @@ class BlastGame extends Phaser.Scene {
     enemy.setVelocity(direction.x * enemy.moveSpeed, direction.y * enemy.moveSpeed);
     if (enemy.enemyType === "tepodon") this.rotateTepodon(enemy, direction);
     if (enemy.enemyType === "pakunman") this.rotatePakunman(enemy, direction);
+    if (enemy.enemyType === "jksoldier") this.playJkSoldierWalk(enemy, direction);
+  }
+
+  playJkSoldierWalk(enemy, direction) {
+    if (!direction) return;
+    let key = "jksoldier-down";
+    if (direction.x < 0) key = "jksoldier-left";
+    else if (direction.x > 0) key = "jksoldier-right";
+    else if (direction.y < 0) key = "jksoldier-up";
+    if (this.anims.exists(key)) enemy.play(key, true);
   }
 
   rotatePakunman(enemy, direction) {
@@ -2683,6 +2907,7 @@ function startDomOpening() {
     <img class="op-image" alt="" />
     <button class="op-sound-button" type="button" aria-label="OP BGMを再生">♪</button>
     <div class="op-start-screen"></div>
+    <div class="op-blackout-screen"></div>
     <div class="op-caption"></div>
     <div class="op-prompt" aria-hidden="true">
       <span class="op-press">PRESS</span>
@@ -2694,11 +2919,13 @@ function startDomOpening() {
 
   const image = overlay.querySelector(".op-image");
   const startScreen = overlay.querySelector(".op-start-screen");
+  const blackoutScreen = overlay.querySelector(".op-blackout-screen");
   const soundButton = overlay.querySelector(".op-sound-button");
   const caption = overlay.querySelector(".op-caption");
   const error = overlay.querySelector(".op-error");
   let slideIndex = 0;
   let timerId = null;
+  let blackoutTimerId = null;
   let skipHoldTimerId = null;
   let openingStarted = false;
   let started = false;
@@ -2706,6 +2933,10 @@ function startDomOpening() {
   openingBgm.loop = false;
   openingBgm.volume = 0.58;
   openingBgm.preload = "auto";
+  const titleBgm = new Audio(TITLE_BGM_SRC);
+  titleBgm.loop = true;
+  titleBgm.volume = 0.55;
+  titleBgm.preload = "auto";
 
   const playOpeningBgm = () => {
     if (openingBgm.paused) {
@@ -2719,6 +2950,16 @@ function startDomOpening() {
   const stopOpeningBgm = () => {
     openingBgm.pause();
     openingBgm.currentTime = 0;
+  };
+
+  const playTitleBgm = () => {
+    stopOpeningBgm();
+    if (titleBgm.paused) titleBgm.play().catch(() => {});
+  };
+
+  const stopTitleBgm = () => {
+    titleBgm.pause();
+    titleBgm.currentTime = 0;
   };
 
   const clearSkipHoldTimer = () => {
@@ -2740,10 +2981,12 @@ function startDomOpening() {
     if (started) return;
     started = true;
     window.clearTimeout(timerId);
+    window.clearTimeout(blackoutTimerId);
     clearSkipHoldTimer();
     window.removeEventListener("keydown", handleKeyDown);
     window.removeEventListener("keyup", handleKeyUp);
     stopOpeningBgm();
+    stopTitleBgm();
     overlay.remove();
     startPhaserGame();
   };
@@ -2788,7 +3031,9 @@ function startDomOpening() {
 
   const openingSlideDuration = (index) => {
     const slide = OPENING_SLIDES[index];
-    if (slide?.file === "12.png") return OPENING_DESCEND_MOTION_DURATION + OPENING_DESCEND_HOLD_DURATION;
+    if (slide?.file === "12.png") {
+      return OPENING_DESCEND_MOTION_DURATION + OPENING_DESCEND_HOLD_DURATION + OPENING_DESCEND_BLACKOUT_DURATION;
+    }
     return OPENING_SLIDE_DURATIONS[index] ?? OPENING_SLIDE_DURATION;
   };
 
@@ -2815,13 +3060,21 @@ function startDomOpening() {
 
   const showSlide = (index, scheduleNext = openingStarted) => {
     window.clearTimeout(timerId);
+    window.clearTimeout(blackoutTimerId);
     slideIndex = index;
     const slide = OPENING_SLIDES[index];
     const duration = openingSlideDuration(index);
+    blackoutScreen?.classList.remove("is-active");
     overlay.classList.toggle("is-final", index === OPENING_SLIDES.length - 1);
     caption.textContent = slide.caption ?? "";
     setSlideImage(slide);
     applySlideMotion(index, duration);
+    if (slide?.file === "12.png") {
+      blackoutTimerId = window.setTimeout(() => {
+        blackoutScreen?.classList.add("is-active");
+      }, OPENING_DESCEND_MOTION_DURATION + OPENING_DESCEND_HOLD_DURATION);
+    }
+    if (slide?.file === "13.png") playTitleBgm();
 
     if (scheduleNext && index < OPENING_SLIDES.length - 1) {
       timerId = window.setTimeout(() => showSlide(index + 1), duration);
@@ -2845,4 +3098,8 @@ function startDomOpening() {
   showSlide(0, false);
 }
 
-startDomOpening();
+if (new URLSearchParams(window.location.search).has("skipOp")) {
+  startPhaserGame();
+} else {
+  startDomOpening();
+}

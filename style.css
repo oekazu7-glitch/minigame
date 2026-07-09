@@ -155,6 +155,20 @@ kbd {
   background: #050914;
 }
 
+.op-blackout-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #050914;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 3s linear;
+}
+
+.op-blackout-screen.is-active {
+  opacity: 1;
+}
+
 .op-sound-button {
   position: absolute;
   top: 14px;

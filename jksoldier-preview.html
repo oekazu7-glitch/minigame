@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JKsoldier Animation Preview</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #101722;
+        color: #e9f2ff;
+        font-family: system-ui, sans-serif;
+      }
+
+      main {
+        display: grid;
+        gap: 22px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 140px);
+        gap: 18px;
+      }
+
+      .cell {
+        display: grid;
+        place-items: center;
+        gap: 10px;
+        padding: 16px;
+        border: 1px solid #2d3b52;
+        background: #172133;
+      }
+
+      .sprite {
+        width: 96px;
+        height: 128px;
+        image-rendering: pixelated;
+        background-image: url("./assets/enemies/jksoldier-walk.png");
+        background-size: 480px 512px;
+        animation: walk 0.72s steps(5) infinite;
+      }
+
+      .down {
+        background-position-y: 0;
+      }
+
+      .up {
+        background-position-y: -128px;
+      }
+
+      .left {
+        background-position-y: -256px;
+      }
+
+      .right {
+        background-position-y: -384px;
+      }
+
+      @keyframes walk {
+        from {
+          background-position-x: 0;
+        }
+        to {
+          background-position-x: -480px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>JKsoldier walk animation preview</h1>
+      <section class="grid" aria-label="方向別歩行アニメーション">
+        <div class="cell">
+          <div class="sprite down"></div>
+          <div>down</div>
+        </div>
+        <div class="cell">
+          <div class="sprite up"></div>
+          <div>up</div>
+        </div>
+        <div class="cell">
+          <div class="sprite left"></div>
+          <div>left</div>
+        </div>
+        <div class="cell">
+          <div class="sprite right"></div>
+          <div>right</div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
